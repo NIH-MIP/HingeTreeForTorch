@@ -20,12 +20,13 @@ from setuptools import setup, Extension
 import torch.cuda
 from torch.utils import cpp_extension
 
-sourceFiles = [ 'hingetree.cpp', 'hingetrie.cpp', 'ImageToMatrix.cpp', 'hingetree_conv.cpp', 'hingetree_fused_linear.cpp', 'hingetree_fusion.cpp', 'expand.cpp', 'Timer.cpp' ]
+sourceFiles = [ 'hingetree.cpp', 'hingetree_sparse.cpp', 'hingetrie.cpp', 'ImageToMatrix.cpp', 'hingetree_conv.cpp', 'hingetree_fused_linear.cpp', 'hingetree_fusion.cpp', 'expand.cpp', 'Timer.cpp' ]
 extraCflags = [ '-O2' ]
 extraCudaFlags = [ '-O2' ]
 
 if torch.cuda.is_available():
   sourceFiles.append('hingetree_gpu.cu')
+  sourceFiles.append('hingetree_sparse_gpu.cu')
   sourceFiles.append('ImageToMatrix_gpu.cu')
   sourceFiles.append('hingetree_conv_gpu.cu')
   sourceFiles.append('hingetree_fused_linear_gpu.cu')
@@ -35,7 +36,7 @@ if torch.cuda.is_available():
   extraCudaFlags.append('-DWITH_CUDA=1')
 
   setup(name='hingetree_cpp', 
-      version='1.0.0',
+      version='1.1.0',
       description='Port of random hinge forest for PyTorch.',
       author='Nathan Lay',
       author_email='enslay@gmail.com',
@@ -45,7 +46,7 @@ if torch.cuda.is_available():
       cmdclass={'build_ext': cpp_extension.BuildExtension})
 else:
   setup(name='hingetree_cpp', 
-      version='1.0.0',
+      version='1.1.0',
       description='Port of random hinge forest for PyTorch.',
       author='Nathan Lay',
       author_email='enslay@gmail.com',

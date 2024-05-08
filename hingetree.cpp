@@ -1690,10 +1690,20 @@ std::vector<torch::Tensor> hingefern_fusion_fused_linear_backward(torch::Tensor 
 torch::Tensor contract(torch::Tensor inData, IntArrayRef window, IntArrayRef padding);
 torch::Tensor expand(torch::Tensor inData, IntArrayRef padding);
 
+// Sparse backward operations
+std::vector<torch::Tensor> sparse_hingetree_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad);
+
+std::vector<torch::Tensor> sparse_hingefern_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad);
+
+std::vector<torch::Tensor> sparse_hingetree_fused_linear_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor inLinearWeights, bool bInLinearWeightsGrad, torch::Tensor inLinearBias, bool bInLinearBiasGrad, torch::Tensor outDataGrad);
+
+std::vector<torch::Tensor> sparse_hingefern_fused_linear_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor inLinearWeights, bool bInLinearWeightsGrad, torch::Tensor inLinearBias, bool bInLinearBiasGrad, torch::Tensor outDataGrad);
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("tree_forward", &hingetree_forward, "Hinge tree forward.");
   m.def("tree_backward", &hingetree_backward, "Hinge tree backward.");
   m.def("tree_backward_deterministic", &hingetree_backward_deterministic, "Deterministic hinge tree backward.");
+  m.def("sparse_tree_backward", &sparse_hingetree_backward, "Hinge tree backward with sparse gradients.");
   m.def("tree_check_thresholds", &hingetree_check_thresholds, "Check logical consistency of thresholds and ordinals in trees. Returns true if logically consistent.");
   m.def("tree_fix_thresholds", &hingetree_fix_thresholds, "Fix logical consistency of thresholds and ordinals in trees. Returns true if changes were made.");
   m.def("tree_reachability", &hingetree_reachability, "Compute leaf visit counts. Returns per-leaf visit counts.");
@@ -1706,6 +1716,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("fern_forward", &hingefern_forward, "Hinge fern forward.");
   m.def("fern_backward", &hingefern_backward, "Hinge fern backward.");
   m.def("fern_backward_deterministic", &hingefern_backward_deterministic, "Deterministic hinge fern backward.");
+  m.def("sparse_fern_backward", &sparse_hingefern_backward, "Hinge fern backward with sparse gradients.");
   m.def("fern_check_thresholds", &hingefern_check_thresholds, "Check logical consistency of thresholds and ordinals in ferns. Returns true if logically consistent.");
   m.def("fern_fix_thresholds", &hingefern_fix_thresholds, "Fix logical consistency of thresholds and ordinals in ferns. Returns true if changes were made.");
   m.def("fern_reachability", &hingefern_reachability, "Compute leaf visit counts. Returns per-leaf visit counts.");
@@ -1737,9 +1748,11 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 
   m.def("tree_fused_linear_forward", &hingetree_fused_linear_forward, "Hinge tree + linear fused forward.");
   m.def("tree_fused_linear_backward", &hingetree_fused_linear_backward, "Hinge tree + linear fused backward.");
+  m.def("sparse_tree_fused_linear_backward", &sparse_hingetree_fused_linear_backward, "Sparse hinge tree + linear fused backward.");
 
   m.def("fern_fused_linear_forward", &hingefern_fused_linear_forward, "Hinge fern + linear fused forward.");
   m.def("fern_fused_linear_backward", &hingefern_fused_linear_backward, "Hinge fern + linear fused backward.");
+  m.def("sparse_fern_fused_linear_backward", &sparse_hingefern_fused_linear_backward, "Sparse hinge fern + linear fused backward.");
 
   m.def("tree_fusion_forward", &hingetree_fusion_forward, "Hinge tree image + feature vector fusion.");
   m.def("tree_fusion_backward", &hingetree_fusion_backward, "Hinge tree image + feature vector fusion.");

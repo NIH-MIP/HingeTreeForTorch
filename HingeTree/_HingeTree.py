@@ -185,6 +185,36 @@ class HingeFern(torch.autograd.Function):
     def init_medians(inData, inThresholds, inOrdinals, inWeights):
         return hingetree_cpp.fern_init_medians(inData, inThresholds, inOrdinals, inWeights)
 
+class SparseHingeTree(HingeTree):
+    @staticmethod
+    def backward(ctx, outDataGrad):
+        inData, inThresholds, inOrdinals, inWeights = ctx.saved_tensors
+        
+        if _is_deterministic() and inData.device.type != "cpu":
+            raise RuntimeError("No deterministic implementation of sparse hinge tree backward on GPUs.")
+
+        inDataGrad, inThresholdsGrad, inOrdinalsGrad, inWeightsGrad = hingetree_cpp.sparse_tree_backward(inData, ctx.needs_input_grad[0], inThresholds, ctx.needs_input_grad[1], inOrdinals, ctx.needs_input_grad[2], inWeights, ctx.needs_input_grad[3], outDataGrad.contiguous())
+        
+        if inDataGrad is not None:
+            inDataGrad = inDataGrad.to_dense()
+
+        return inDataGrad, inThresholdsGrad, inOrdinalsGrad, inWeightsGrad
+        
+class SparseHingeFern(HingeFern):
+    @staticmethod
+    def backward(ctx, outDataGrad):
+        inData, inThresholds, inOrdinals, inWeights = ctx.saved_tensors
+        
+        if _is_deterministic() and inData.device.type != "cpu":
+            raise RuntimeError("No deterministic implementation of sparse hinge fern backward on GPUs.")
+
+        inDataGrad, inThresholdsGrad, inOrdinalsGrad, inWeightsGrad = hingetree_cpp.sparse_fern_backward(inData, ctx.needs_input_grad[0], inThresholds, ctx.needs_input_grad[1], inOrdinals, ctx.needs_input_grad[2], inWeights, ctx.needs_input_grad[3], outDataGrad.contiguous())
+        
+        if inDataGrad is not None:
+            inDataGrad = inDataGrad.to_dense()
+
+        return inDataGrad, inThresholdsGrad, inOrdinalsGrad, inWeightsGrad
+
 class HingeTreeFusedLinear(HingeTree):
     @staticmethod
     def forward(ctx, inData, inThresholds, inOrdinals, inWeights, inLinearWeights, inLinearBias):
@@ -224,6 +254,36 @@ class HingeFernFusedLinear(HingeFern):
         inData, inThresholds, inOrdinals, inWeights, inLinearWeights, inLinearBias = ctx.saved_tensors
 
         inDataGrad, inThresholdsGrad, inOrdinalsGrad, inWeightsGrad, inLinearWeightsGrad, inLinearBiasGrad = hingetree_cpp.fern_fused_linear_backward(inData, ctx.needs_input_grad[0], inThresholds, ctx.needs_input_grad[1], inOrdinals, ctx.needs_input_grad[2], inWeights, ctx.needs_input_grad[3], inLinearWeights, ctx.needs_input_grad[4], inLinearBias, ctx.needs_input_grad[5], outDataGrad.contiguous())
+
+        return inDataGrad, inThresholdsGrad, inOrdinalsGrad, inWeightsGrad, inLinearWeightsGrad, inLinearBiasGrad
+
+class SparseHingeTreeFusedLinear(HingeTreeFusedLinear):
+    @staticmethod
+    def backward(ctx, outDataGrad):
+        if _is_deterministic() and outDataGrad.device.type != "cpu":
+            raise RuntimeError("No deterministic implementation of backpropagation for hinge tree + linear on GPUs.")
+
+        inData, inThresholds, inOrdinals, inWeights, inLinearWeights, inLinearBias = ctx.saved_tensors
+
+        inDataGrad, inThresholdsGrad, inOrdinalsGrad, inWeightsGrad, inLinearWeightsGrad, inLinearBiasGrad = hingetree_cpp.sparse_tree_fused_linear_backward(inData, ctx.needs_input_grad[0], inThresholds, ctx.needs_input_grad[1], inOrdinals, ctx.needs_input_grad[2], inWeights, ctx.needs_input_grad[3], inLinearWeights, ctx.needs_input_grad[4], inLinearBias, ctx.needs_input_grad[5], outDataGrad.contiguous())
+
+        if inDataGrad is not None:
+            inDataGrad = inDataGrad.to_dense()
+
+        return inDataGrad, inThresholdsGrad, inOrdinalsGrad, inWeightsGrad, inLinearWeightsGrad, inLinearBiasGrad
+
+class SparseHingeFernFusedLinear(HingeFernFusedLinear):
+    @staticmethod
+    def backward(ctx, outDataGrad):
+        if _is_deterministic() and outDataGrad.device.type != "cpu":
+            raise RuntimeError("No deterministic implementation of backpropagation for hinge fern + linear on GPUs.")
+
+        inData, inThresholds, inOrdinals, inWeights, inLinearWeights, inLinearBias = ctx.saved_tensors
+
+        inDataGrad, inThresholdsGrad, inOrdinalsGrad, inWeightsGrad, inLinearWeightsGrad, inLinearBiasGrad = hingetree_cpp.sparse_fern_fused_linear_backward(inData, ctx.needs_input_grad[0], inThresholds, ctx.needs_input_grad[1], inOrdinals, ctx.needs_input_grad[2], inWeights, ctx.needs_input_grad[3], inLinearWeights, ctx.needs_input_grad[4], inLinearBias, ctx.needs_input_grad[5], outDataGrad.contiguous())
+        
+        if inDataGrad is not None:
+            inDataGrad = inDataGrad.to_dense()
 
         return inDataGrad, inThresholdsGrad, inOrdinalsGrad, inWeightsGrad, inLinearWeightsGrad, inLinearBiasGrad
 

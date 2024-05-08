@@ -22,8 +22,10 @@ import torch.nn as nn
 import torch.nn.init as init
 from HingeTree import (
     HingeTree, HingeFern, 
+    SparseHingeTree, SparseHingeFern,
     HingeTrie, 
     HingeTreeFusedLinear, HingeFernFusedLinear, 
+    SparseHingeTreeFusedLinear, SparseHingeFernFusedLinear, 
     HingeTreeFusion, HingeFernFusion,
     HingeTreeFusionFusedLinear, HingeFernFusionFusedLinear,
 )
@@ -283,6 +285,14 @@ class RandomHingeTrie(nn.Module):
         # For compatibility
         self.ordinals = self.ordinals.type(torch.long)
 
+class SparseRandomHingeForest(RandomHingeForest):
+    def forward(self, x):
+        return SparseHingeTree.apply(x, self.thresholds, self.ordinals, self.weights)
+        
+class SparseRandomHingeFern(RandomHingeFern):
+    def forward(self, x):
+        return SparseHingeFern.apply(x, self.thresholds, self.ordinals, self.weights)
+
 class RandomHingeForestFusedLinear(RandomHingeForest):
     def __init__(self, in_channels: int, number_of_trees: int, out_channels: int, depth: int, extra_outputs = None, init_type: str = "random", bias: bool = True):
         super().__init__(in_channels, number_of_trees, depth, extra_outputs, init_type)
@@ -318,6 +328,14 @@ class RandomHingeFernFusedLinear(RandomHingeFern):
 
     def forward(self, x):
         return HingeFernFusedLinear.apply(x, self.thresholds, self.ordinals, self.weights, self.linear_weights, self.linear_bias)
+
+class SparseRandomHingeForestFusedLinear(RandomHingeForestFusedLinear):
+    def forward(self, x):
+        return SparseHingeTreeFusedLinear.apply(x, self.thresholds, self.ordinals, self.weights, self.linear_weights, self.linear_bias)
+
+class SparseRandomHingeFernFusedLinear(RandomHingeFernFusedLinear):
+    def forward(self, x):
+        return SparseHingeFernFusedLinear.apply(x, self.thresholds, self.ordinals, self.weights, self.linear_weights, self.linear_bias)
 
 class RandomHingeForestFusion(nn.Module):
     __constants__ = [ "img_channels", "vec_channels", "out_channels", "depth", "extra_outputs", "init_type" ]
