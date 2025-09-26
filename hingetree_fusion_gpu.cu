@@ -351,26 +351,34 @@ template<typename RealType, typename TreeTraitsType>
 torch::Tensor hingetree_fusion_gpu_forward(torch::Tensor inImg, torch::Tensor inVec, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   typedef bleak::HingeTreeCommonGPU<TreeTraitsType> TreeTraitsTypeGPU;
 
-  if (inImg.dim() < 2 || inVec.dim() != 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2)
+  if (inImg.dim() < 2 || inVec.dim() != 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
+    std::cerr << "Error: inImg, inVec, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
     return torch::Tensor();
+  }
 
-  if (inImg.sizes()[0] != inVec.sizes()[0] || inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0])
+  if (inImg.sizes()[0] != inVec.sizes()[0] || inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
+    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]. inImg.shape[0] must be the same as inVec.shape[0]." << std::endl;
     return torch::Tensor();
+  }
   
   const int64_t i64NumTrees = inWeights.sizes()[0];
   const int64_t i64NumLeavesPerTree = inWeights.sizes()[1];
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
-  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth))
+  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
+    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
     return torch::Tensor();
+  }
 
   const int64_t i64BatchSize = inImg.sizes()[0];
   const int64_t i64ImgChannels = inImg.sizes()[1];
   const int64_t i64VecChannels = inVec.sizes()[1];
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
-  if (inOrdinals.min().to(torch::kCPU).item<int64_t>() < 0 || inOrdinals.max().to(torch::kCPU).item<int64_t>() >= i64ImgChannels + i64VecChannels)
+  if (inOrdinals.min().to(torch::kCPU).item<int64_t>() < 0 || inOrdinals.max().to(torch::kCPU).item<int64_t>() >= i64ImgChannels + i64VecChannels) {
+    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of image channels + feature vector channels (" << i64ImgChannels + i64VecChannels << ")." << std::endl;
     return torch::Tensor();
+  }
  
   const RealType * const p_inImg = inImg.data_ptr<RealType>();
   const RealType * const p_inVec = inVec.data_ptr<RealType>();
@@ -427,29 +435,39 @@ template<typename RealType, typename TreeTraitsType>
 std::vector<torch::Tensor> hingetree_fusion_gpu_backward(torch::Tensor inImg, bool bInImgGrad, torch::Tensor inVec, bool bInVecGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad) {
   typedef bleak::HingeTreeCommonGPU<TreeTraitsType> TreeTraitsTypeGPU;
 
-  if (bInOrdinalsGrad) // Not differentiable, ever!
+  if (bInOrdinalsGrad) { // Not differentiable, ever!
+    std::cerr << "Error: Gradient on inOrdinals is requested, but inOrdinals never has a gradient." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
-  if (inImg.dim() < 2 || inVec.dim() != 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2)
+  if (inImg.dim() < 2 || inVec.dim() != 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
+    std::cerr << "Error: inImg, inVec, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
-  if (inImg.sizes()[0] != inVec.sizes()[0] || inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0])
+  if (inImg.sizes()[0] != inVec.sizes()[0] || inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
+    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]. inImg.shape[0] must be the same as inVec.shape[0]." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
   const int64_t i64NumTrees = inWeights.sizes()[0];
   const int64_t i64NumLeavesPerTree = inWeights.sizes()[1];
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
-  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth))
+  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
+    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
   const int64_t i64BatchSize = inImg.sizes()[0];
   const int64_t i64ImgChannels = inImg.sizes()[1];
   const int64_t i64VecChannels = inVec.sizes()[1];
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
-  if (inOrdinals.min().to(torch::kCPU).item<int64_t>() < 0 || inOrdinals.max().to(torch::kCPU).item<int64_t>() >= i64ImgChannels + i64VecChannels)
+  if (inOrdinals.min().to(torch::kCPU).item<int64_t>() < 0 || inOrdinals.max().to(torch::kCPU).item<int64_t>() >= i64ImgChannels + i64VecChannels) {
+    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of image channels + feature vector channels (" << i64ImgChannels + i64VecChannels << ")." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
   std::vector<IntArrayRef::value_type> vSizes;
   
@@ -474,8 +492,10 @@ std::vector<torch::Tensor> hingetree_fusion_gpu_backward(torch::Tensor inImg, bo
   }
 
   // Sanity check on outDataGrad
-  if (outDataGrad.sizes() != IntArrayRef(vSizes.data(), vSizes.size()))
+  if (outDataGrad.sizes() != IntArrayRef(vSizes.data(), vSizes.size())) {
+    std::cerr << "Error: outDataGrad.shape does not match the expected shape (" << outDataGrad.sizes() << " != " << IntArrayRef(vSizes.data(), vSizes.size()) << ")." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
   const RealType * const p_inImg = inImg.data_ptr<RealType>();
   const RealType * const p_inVec = inVec.data_ptr<RealType>();

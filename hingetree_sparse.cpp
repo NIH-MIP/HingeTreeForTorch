@@ -120,28 +120,38 @@ std::vector<torch::Tensor> sparse_hingetree_fused_linear_gpu_backward(torch::Ten
 template<typename RealType, typename TreeTraitsType>
 std::vector<torch::Tensor> sparse_hingetree_cpu_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad) {
   typedef typename TreeTraitsType::KeyType KeyType;
-  if (bInOrdinalsGrad) // Not differentiable, ever!
+  if (bInOrdinalsGrad) { // Not differentiable, ever!
+    std::cerr << "Error: Gradient on inOrdinals is requested, but inOrdinals never has a gradient." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
-  if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2 || outDataGrad.dim() < 2)
+  if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2 || outDataGrad.dim() < 2) {
+    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
-  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0])
+  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
+    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
   const int64_t i64NumTrees = inWeights.sizes()[0];
   const int64_t i64NumLeavesPerTree = inWeights.sizes()[1];
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
-  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth))
+  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
+    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
   const int64_t i64BatchSize = inData.sizes()[0];
   const int64_t i64NumChannels = inData.sizes()[1];
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
-  if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels)
+  if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels) {
+    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
   std::vector<IntArrayRef::value_type> vSizes;
   
@@ -166,8 +176,10 @@ std::vector<torch::Tensor> sparse_hingetree_cpu_backward(torch::Tensor inData, b
   }
 
   // Sanity check on outDataGrad
-  if (outDataGrad.sizes() != IntArrayRef(vSizes.data(), vSizes.size()))
+  if (outDataGrad.sizes() != IntArrayRef(vSizes.data(), vSizes.size())) {
+    std::cerr << "Error: outDataGrad.shape does not match the expected shape (" << outDataGrad.sizes() << " != " << IntArrayRef(vSizes.data(), vSizes.size()) << ")." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
   const RealType * const p_inData = inData.data_ptr<RealType>();
   const RealType * const p_inThresholds = inThresholds.data_ptr<RealType>();
@@ -279,29 +291,39 @@ template<typename RealType, typename TreeTraitsType>
 std::vector<torch::Tensor> sparse_hingetree_fused_linear_cpu_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor inLinearWeights, bool bInLinearWeightsGrad, torch::Tensor inLinearBias, bool bInLinearBiasGrad, torch::Tensor outDataGrad) {
   typedef typename TreeTraitsType::KeyType KeyType;
   
-  if (bInOrdinalsGrad) // Not differentiable, ever!
+  if (bInOrdinalsGrad) { // Not differentiable, ever!
+    std::cerr << "Error: Gradient on inOrdinals is requested, but inOrdinals never has a gradient." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
-  if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2 || inLinearWeights.dim() != 2 || inLinearBias.dim() != 1 || outDataGrad.dim() < 2)
+  if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2 || inLinearWeights.dim() != 2 || inLinearBias.dim() != 1 || outDataGrad.dim() < 2) {
+    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds, inOrdinals, inLinearWeights must have 2 dimensions. inLinearBias must have 1 dimension." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
-  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0] || inWeights.sizes()[0] != inLinearWeights.sizes()[1] || inLinearWeights.sizes()[0] != inLinearBias.sizes()[0])
+  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0] || inWeights.sizes()[0] != inLinearWeights.sizes()[1] || inLinearWeights.sizes()[0] != inLinearBias.sizes()[0]) {
+    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]. inLinearWeightrs.shape[0] must be the same as inLinearBias.shape[0]." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
   const int64_t i64NumTrees = inWeights.sizes()[0];
   const int64_t i64NumLeavesPerTree = inWeights.sizes()[1];
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
-  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth))
+  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
+    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
   const int64_t i64BatchSize = inData.sizes()[0];
   const int64_t i64NumChannels = inData.sizes()[1];
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
   const int64_t i64OutChannels = inLinearWeights.sizes()[0];
 
-  if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels)
+  if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels) {
+    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
   std::vector<IntArrayRef::value_type> vSizes;
   
@@ -327,8 +349,10 @@ std::vector<torch::Tensor> sparse_hingetree_fused_linear_cpu_backward(torch::Ten
   }
 
   // Sanity check on outDataGrad
-  if (outDataGrad.sizes() != IntArrayRef(vSizes.data(), vSizes.size()))
+  if (outDataGrad.sizes() != IntArrayRef(vSizes.data(), vSizes.size())) {
+    std::cerr << "Error: outDataGrad.shape does not match the expected shape (" << outDataGrad.sizes() << " != " << IntArrayRef(vSizes.data(), vSizes.size()) << ")." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
   const RealType * const p_inData = inData.data_ptr<RealType>();
   const RealType * const p_inThresholds = inThresholds.data_ptr<RealType>();

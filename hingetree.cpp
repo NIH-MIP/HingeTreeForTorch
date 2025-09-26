@@ -61,25 +61,33 @@ template<typename RealType, typename TreeTraitsType>
 torch::Tensor hingetree_cpu_forward(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   typedef typename TreeTraitsType::KeyType KeyType;
   
-  if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2)
+  if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
+    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
     return torch::Tensor();
+  }
 
-  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0])
+  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
+    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
     return torch::Tensor();
+  }
   
   const int64_t i64NumTrees = inWeights.sizes()[0];
   const int64_t i64NumLeavesPerTree = inWeights.sizes()[1];
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
-  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth))
+  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
+    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
     return torch::Tensor();
+  }
 
   const int64_t i64BatchSize = inData.sizes()[0];
   const int64_t i64NumChannels = inData.sizes()[1];
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
-  if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels)
+  if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels) {
+    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
     return torch::Tensor();
+  }
 
   const RealType * const p_inData = inData.data_ptr<RealType>();
   const RealType * const p_inThresholds = inThresholds.data_ptr<RealType>();
@@ -144,28 +152,38 @@ template<typename RealType, typename TreeTraitsType>
 std::vector<torch::Tensor> hingetree_cpu_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad) {
   typedef typename TreeTraitsType::KeyType KeyType;
   
-  if (bInOrdinalsGrad) // Not differentiable, ever!
+  if (bInOrdinalsGrad) { // Not differentiable, ever!
+    std::cerr << "Error: Gradient on inOrdinals is requested, but inOrdinals never has a gradient." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
-  if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2 || outDataGrad.dim() < 2)
+  if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2 || outDataGrad.dim() < 2) {
+    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
-  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0])
+  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
+    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
   const int64_t i64NumTrees = inWeights.sizes()[0];
   const int64_t i64NumLeavesPerTree = inWeights.sizes()[1];
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
-  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth))
+  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
+    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
   const int64_t i64BatchSize = inData.sizes()[0];
   const int64_t i64NumChannels = inData.sizes()[1];
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
-  if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels)
+  if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels) {
+    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
   std::vector<IntArrayRef::value_type> vSizes;
   
@@ -190,8 +208,10 @@ std::vector<torch::Tensor> hingetree_cpu_backward(torch::Tensor inData, bool bIn
   }
 
   // Sanity check on outDataGrad
-  if (outDataGrad.sizes() != IntArrayRef(vSizes.data(), vSizes.size()))
+  if (outDataGrad.sizes() != IntArrayRef(vSizes.data(), vSizes.size())) {
+    std::cerr << "Error: outDataGrad.shape does not match the expected shape (" << outDataGrad.sizes() << " != " << IntArrayRef(vSizes.data(), vSizes.size()) << ")." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
   const RealType * const p_inData = inData.data_ptr<RealType>();
   const RealType * const p_inThresholds = inThresholds.data_ptr<RealType>();
@@ -286,25 +306,33 @@ template<typename RealType, typename TreeTraitsType>
 torch::Tensor hingetree_cpu_leafmap(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   typedef typename TreeTraitsType::KeyType KeyType;
   
-  if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2)
+  if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
+    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
     return torch::Tensor();
+  }
 
-  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0])
+  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
+    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
     return torch::Tensor();
+  }
   
   const int64_t i64NumTrees = inWeights.sizes()[0];
   const int64_t i64NumLeavesPerTree = inWeights.sizes()[1];
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
-  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth))
+  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
+    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
     return torch::Tensor();
+  }
 
   const int64_t i64BatchSize = inData.sizes()[0];
   const int64_t i64NumChannels = inData.sizes()[1];
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
-  if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels)
+  if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels) {
+    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
     return torch::Tensor();
+  }
 
   const RealType * const p_inData = inData.data_ptr<RealType>();
   const RealType * const p_inThresholds = inThresholds.data_ptr<RealType>();
@@ -354,25 +382,33 @@ template<typename RealType, typename TreeTraitsType>
 std::vector<torch::Tensor> hingetree_cpu_marginmap(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   typedef typename TreeTraitsType::KeyType KeyType;
   
-  if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2)
+  if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
+    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
-  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0])
+  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
+    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
   const int64_t i64NumTrees = inWeights.sizes()[0];
   const int64_t i64NumLeavesPerTree = inWeights.sizes()[1];
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
-  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth))
+  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
+    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
   const int64_t i64BatchSize = inData.sizes()[0];
   const int64_t i64NumChannels = inData.sizes()[1];
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
-  if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels)
+  if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels) {
+    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
   const RealType * const p_inData = inData.data_ptr<RealType>();
   const RealType * const p_inThresholds = inThresholds.data_ptr<RealType>();
@@ -445,19 +481,25 @@ std::vector<torch::Tensor> hingetree_gpu_marginmap(torch::Tensor, torch::Tensor,
 
 template<typename RealType, typename TreeTraitsType>
 std::vector<bool> hingetree_cpu_check_thresholds(torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
-  if (inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2)
+  if (inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
+    std::cerr << "Error: inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
     return std::vector<bool>();
+  }
 
-  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0])
+  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
+    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
     return std::vector<bool>();
+  }
 
   const int64_t i64NumTrees = inThresholds.sizes()[0];
   const int64_t i64NumLeavesPerTree = inWeights.sizes()[1];
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
 
-  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth))
+  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
+    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
     return std::vector<bool>();
+  }
   
   const RealType * const p_inThresholds = inThresholds.data_ptr<RealType>();
   const int64_t * const p_inOrdinals = inOrdinals.data_ptr<int64_t>();
@@ -472,19 +514,25 @@ std::vector<bool> hingetree_cpu_check_thresholds(torch::Tensor inThresholds, tor
 
 template<typename RealType, typename TreeTraitsType>
 std::vector<bool> hingetree_cpu_fix_thresholds(torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
-  if (inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2)
+  if (inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
+    std::cerr << "Error: inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
     return std::vector<bool>();
+  }
 
-  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0])
+  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
+    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
     return std::vector<bool>();
+  }
 
   const int64_t i64NumTrees = inThresholds.sizes()[0];
   const int64_t i64NumLeavesPerTree = inWeights.sizes()[1];
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
 
-  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth))
+  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
+    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
     return std::vector<bool>();
+  }
   
   RealType * const p_inThresholds = inThresholds.data_ptr<RealType>();
   const int64_t * const p_inOrdinals = inOrdinals.data_ptr<int64_t>();
@@ -501,25 +549,33 @@ template<typename RealType, typename TreeTraitsType>
 torch::Tensor hingetree_cpu_reachability(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   typedef typename TreeTraitsType::KeyType KeyType;
 
-  if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2)
+  if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
+    std::cerr << "Error: inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
     return torch::Tensor();
+  }
 
-  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0])
+  if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
+    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
     return torch::Tensor();
+  }
 
   const int64_t i64NumTrees = inWeights.sizes()[0];
   const int64_t i64NumLeavesPerTree = inWeights.sizes()[1];
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
-  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth))
+  if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
+    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
     return torch::Tensor();
+  }
 
   const int64_t i64BatchSize = inData.sizes()[0];
   const int64_t i64NumChannels = inData.sizes()[1];
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
  
-  if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels)
+  if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels) {
+    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
     return torch::Tensor();
+  }
 
   const RealType * const p_inData = inData.data_ptr<RealType>();
   const RealType * const p_inThresholds = inThresholds.data_ptr<RealType>();
@@ -1642,11 +1698,15 @@ std::vector<torch::Tensor> hingetree_conv_gpu_backward(torch::Tensor, bool, torc
 
 template<unsigned int Dimension>
 torch::Tensor hingetree_conv_forward(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights, IntArrayRef kernelSize, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation) {
-  if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype())
+  if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype()) {
+    std::cerr << "Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
     return torch::Tensor();
+  }
   
-  if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device())
+  if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device()) {
+    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
     return torch::Tensor();
+  }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
     std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
@@ -1686,14 +1746,20 @@ torch::Tensor hingetree_conv_forward(torch::Tensor inData, torch::Tensor inThres
 
 template<unsigned int Dimension>
 std::vector<torch::Tensor> hingetree_conv_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad, IntArrayRef kernelSize, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation) {
-  if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype() || inData.dtype() != outDataGrad.dtype())
+  if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype() || inData.dtype() != outDataGrad.dtype()) {
+    std::cerr << "Error: inData, inThresholds, inWeights, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
-  if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device() || inData.device() != outDataGrad.device())
+  if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device() || inData.device() != outDataGrad.device()) {
+    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
-  if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous() || !outDataGrad.is_contiguous())
+  if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous() || !outDataGrad.is_contiguous()) {
+    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
   c10::DeviceGuard clGuard(inData.device());
 
@@ -1728,11 +1794,15 @@ std::vector<torch::Tensor> hingetree_conv_backward(torch::Tensor inData, bool bI
 
 template<unsigned int Dimension>
 torch::Tensor hingefern_conv_forward(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights, IntArrayRef kernelSize, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation) {
-  if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype())
+  if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype()) {
+    std::cerr << "Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
     return torch::Tensor();
+  }
   
-  if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device())
+  if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device()) {
+    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
     return torch::Tensor();
+  }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
     std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
@@ -1772,11 +1842,15 @@ torch::Tensor hingefern_conv_forward(torch::Tensor inData, torch::Tensor inThres
 
 template<unsigned int Dimension>
 std::vector<torch::Tensor> hingefern_conv_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad, IntArrayRef kernelSize, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation) {
-  if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype() || inData.dtype() != outDataGrad.dtype())
+  if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype() || inData.dtype() != outDataGrad.dtype()) {
+    std::cerr << "Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
-  if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device() || inData.device() != outDataGrad.device())
+  if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device() || inData.device() != outDataGrad.device()) {
+    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous() || !outDataGrad.is_contiguous()) {
     std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
