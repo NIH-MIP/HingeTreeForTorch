@@ -284,14 +284,20 @@ std::vector<torch::Tensor> hingetree_fusion_gpu_backward(torch::Tensor, bool, to
 #endif // !WITH_CUDA
 
 torch::Tensor hingetree_fusion_forward(torch::Tensor inImg, torch::Tensor inVec, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
-  if (inImg.dtype() != inVec.dtype() || inImg.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inImg.dtype() != inWeights.dtype())
+  if (inImg.dtype() != inVec.dtype() || inImg.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inImg.dtype() != inWeights.dtype()) {
+    std::cerr << "Error: inImg, inVec, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
     return torch::Tensor();
+  }
   
-  if (inImg.device() != inVec.device() || inImg.device() != inThresholds.device() || inImg.device() != inOrdinals.device() || inImg.device() != inWeights.device())
+  if (inImg.device() != inVec.device() || inImg.device() != inThresholds.device() || inImg.device() != inOrdinals.device() || inImg.device() != inWeights.device()) {
+    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
     return torch::Tensor();
+  }
 
-  if (!inImg.is_contiguous() || !inVec.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous())
+  if (!inImg.is_contiguous() || !inVec.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
+    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
     return torch::Tensor();
+  }
   
   c10::DeviceGuard clGuard(inImg.device());
 
@@ -317,6 +323,7 @@ torch::Tensor hingetree_fusion_forward(torch::Tensor inImg, torch::Tensor inVec,
     }
     break;
   default:
+    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
     return torch::Tensor();
   }
   
@@ -324,14 +331,20 @@ torch::Tensor hingetree_fusion_forward(torch::Tensor inImg, torch::Tensor inVec,
 }
 
 std::vector<torch::Tensor> hingetree_fusion_backward(torch::Tensor inImg, bool bInImgGrad, torch::Tensor inVec, bool bInVecGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad) {
-  if (inImg.dtype() != inVec.dtype() || inImg.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inImg.dtype() != inWeights.dtype() || inImg.dtype() != outDataGrad.dtype())
+  if (inImg.dtype() != inVec.dtype() || inImg.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inImg.dtype() != inWeights.dtype() || inImg.dtype() != outDataGrad.dtype()) {
+    std::cerr << "Error: inImg, inVec, inThresholds, inWeights, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
-  if (inImg.device() != inVec.device() || inImg.device() != inThresholds.device() || inImg.device() != inOrdinals.device() || inImg.device() != inWeights.device() || inImg.device() != outDataGrad.device())
+  if (inImg.device() != inVec.device() || inImg.device() != inThresholds.device() || inImg.device() != inOrdinals.device() || inImg.device() != inWeights.device() || inImg.device() != outDataGrad.device()) {
+    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
-  if (!inImg.is_contiguous() || !inVec.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous() || !outDataGrad.is_contiguous())
+  if (!inImg.is_contiguous() || !inVec.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous() || !outDataGrad.is_contiguous()) {
+    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
   c10::DeviceGuard clGuard(inImg.device());
 
@@ -357,6 +370,7 @@ std::vector<torch::Tensor> hingetree_fusion_backward(torch::Tensor inImg, bool b
     }
     break;
   default:
+    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
     return std::vector<torch::Tensor>();
   }
   
@@ -364,14 +378,20 @@ std::vector<torch::Tensor> hingetree_fusion_backward(torch::Tensor inImg, bool b
 }
 
 torch::Tensor hingefern_fusion_forward(torch::Tensor inImg, torch::Tensor inVec, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
-  if (inImg.dtype() != inVec.dtype() || inImg.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inImg.dtype() != inWeights.dtype())
+  if (inImg.dtype() != inVec.dtype() || inImg.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inImg.dtype() != inWeights.dtype()) {
+    std::cerr << "Error: inImg, inVec, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
     return torch::Tensor();
+  }
   
-  if (inImg.device() != inVec.device() || inImg.device() != inThresholds.device() || inImg.device() != inOrdinals.device() || inImg.device() != inWeights.device())
+  if (inImg.device() != inVec.device() || inImg.device() != inThresholds.device() || inImg.device() != inOrdinals.device() || inImg.device() != inWeights.device()) {
+    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
     return torch::Tensor();
+  }
 
-  if (!inImg.is_contiguous() || !inVec.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous())
+  if (!inImg.is_contiguous() || !inVec.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
+    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
     return torch::Tensor();
+  }
 
   c10::DeviceGuard clGuard(inImg.device());
 
@@ -397,6 +417,7 @@ torch::Tensor hingefern_fusion_forward(torch::Tensor inImg, torch::Tensor inVec,
     }
     break;
   default:
+    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
     return torch::Tensor();
   }
   
@@ -404,14 +425,20 @@ torch::Tensor hingefern_fusion_forward(torch::Tensor inImg, torch::Tensor inVec,
 }
 
 std::vector<torch::Tensor> hingefern_fusion_backward(torch::Tensor inImg, bool bInImgGrad, torch::Tensor inVec, bool bInVecGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad) {
-  if (inImg.dtype() != inVec.dtype() || inImg.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inImg.dtype() != inWeights.dtype() || inImg.dtype() != outDataGrad.dtype())
+  if (inImg.dtype() != inVec.dtype() || inImg.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inImg.dtype() != inWeights.dtype() || inImg.dtype() != outDataGrad.dtype()) {
+    std::cerr << "Error: inImg, inVec, inThresholds, inWeights, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
     return std::vector<torch::Tensor>();
+  }
   
-  if (inImg.device() != inVec.device() || inImg.device() != inThresholds.device() || inImg.device() != inOrdinals.device() || inImg.device() != inWeights.device() || inImg.device() != outDataGrad.device())
+  if (inImg.device() != inVec.device() || inImg.device() != inThresholds.device() || inImg.device() != inOrdinals.device() || inImg.device() != inWeights.device() || inImg.device() != outDataGrad.device()) {
+    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
-  if (!inImg.is_contiguous() || !inVec.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous() || !outDataGrad.is_contiguous())
+  if (!inImg.is_contiguous() || !inVec.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous() || !outDataGrad.is_contiguous()) {
+    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
     return std::vector<torch::Tensor>();
+  }
 
   c10::DeviceGuard clGuard(inImg.device());
 
@@ -437,6 +464,7 @@ std::vector<torch::Tensor> hingefern_fusion_backward(torch::Tensor inImg, bool b
     }
     break;
   default:
+    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
     return std::vector<torch::Tensor>();
   }
   

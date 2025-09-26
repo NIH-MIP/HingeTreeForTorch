@@ -328,8 +328,15 @@ torch::Tensor contract3d(torch::Tensor inData, const int64_t a_i64Window[3], con
 }
 
 torch::Tensor contract(torch::Tensor inData, IntArrayRef window, IntArrayRef padding) {
-  if (window.empty() || window.size() != padding.size() || !inData.is_contiguous())
+  if (window.empty() || window.size() != padding.size()) {
+    std::cerr << "Error: window and padding must be non-empty and the same size." << std::endl;
     return torch::Tensor();
+  }
+
+  if (!inData.is_contiguous()) {
+    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    return torch::Tensor();
+  }
 
   c10::DeviceGuard clGuard(inData.device());
 
@@ -341,6 +348,8 @@ torch::Tensor contract(torch::Tensor inData, IntArrayRef window, IntArrayRef pad
         return contract2d<uint8_t>(inData, window.data(), padding.data());
       case 3:
         return contract3d<uint8_t>(inData, window.data(), padding.data());
+      default:
+        std::cerr << "Error: Only 2D and 3D window sizes are supported." << std::endl;
       }
     }
     break;
@@ -351,6 +360,8 @@ torch::Tensor contract(torch::Tensor inData, IntArrayRef window, IntArrayRef pad
         return contract2d<int8_t>(inData, window.data(), padding.data());
       case 3:
         return contract3d<int8_t>(inData, window.data(), padding.data());
+      default:
+        std::cerr << "Error: Only 2D and 3D window sizes are supported." << std::endl;
       }
     }
     break;
@@ -361,6 +372,8 @@ torch::Tensor contract(torch::Tensor inData, IntArrayRef window, IntArrayRef pad
         return contract2d<int16_t>(inData, window.data(), padding.data());
       case 3:
         return contract3d<int16_t>(inData, window.data(), padding.data());
+      default:
+        std::cerr << "Error: Only 2D and 3D window sizes are supported." << std::endl;
       }
     }
     break;
@@ -371,6 +384,8 @@ torch::Tensor contract(torch::Tensor inData, IntArrayRef window, IntArrayRef pad
         return contract2d<int32_t>(inData, window.data(), padding.data());
       case 3:
         return contract3d<int32_t>(inData, window.data(), padding.data());
+      default:
+        std::cerr << "Error: Only 2D and 3D window sizes are supported." << std::endl;
       }
     }
     break;
@@ -381,6 +396,8 @@ torch::Tensor contract(torch::Tensor inData, IntArrayRef window, IntArrayRef pad
         return contract2d<int64_t>(inData, window.data(), padding.data());
       case 3:
         return contract3d<int64_t>(inData, window.data(), padding.data());
+      default:
+        std::cerr << "Error: Only 2D and 3D window sizes are supported." << std::endl;
       }
     }
     break;
@@ -391,6 +408,8 @@ torch::Tensor contract(torch::Tensor inData, IntArrayRef window, IntArrayRef pad
         return contract2d<float>(inData, window.data(), padding.data());
       case 3:
         return contract3d<float>(inData, window.data(), padding.data());
+      default:
+        std::cerr << "Error: Only 2D and 3D window sizes are supported." << std::endl;
       }
     }
     break;
@@ -401,10 +420,13 @@ torch::Tensor contract(torch::Tensor inData, IntArrayRef window, IntArrayRef pad
         return contract2d<double>(inData, window.data(), padding.data());
       case 3:
         return contract3d<double>(inData, window.data(), padding.data());
+      default:
+        std::cerr << "Error: Only 2D and 3D window sizes are supported." << std::endl;
       }
     }
     break;
   default:
+    std::cerr << "Error: Only torch.{uint8,int8,int16,int32,int64,float32,float64} are supported." << std::endl;
     return torch::Tensor();
   }
 
@@ -428,8 +450,15 @@ torch::Tensor expand3d(torch::Tensor inData, const int64_t a_i64Padding[3]) {
 }
 
 torch::Tensor expand(torch::Tensor inData, IntArrayRef padding) {
-  if (padding.empty() || !inData.is_contiguous())
+  if (padding.empty()) {
+    std::cerr << "Error: padding must be non-empty." << std::endl;
     return torch::Tensor();
+  }
+
+  if (!inData.is_contiguous()) {
+    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    return torch::Tensor();
+  }
 
   c10::DeviceGuard clGuard(inData.device());
 
@@ -441,6 +470,8 @@ torch::Tensor expand(torch::Tensor inData, IntArrayRef padding) {
         return expand2d<uint8_t>(inData, padding.data());
       case 3:
         return expand3d<uint8_t>(inData, padding.data());
+      default:
+        std::cerr << "Error: Only 2D and 3D padding sizes are supported." << std::endl;
       }
     }
     break;
@@ -461,6 +492,8 @@ torch::Tensor expand(torch::Tensor inData, IntArrayRef padding) {
         return expand2d<int16_t>(inData, padding.data());
       case 3:
         return expand3d<int16_t>(inData, padding.data());
+      default:
+        std::cerr << "Error: Only 2D and 3D padding sizes are supported." << std::endl;
       }
     }
     break;
@@ -471,6 +504,8 @@ torch::Tensor expand(torch::Tensor inData, IntArrayRef padding) {
         return expand2d<int32_t>(inData, padding.data());
       case 3:
         return expand3d<int32_t>(inData, padding.data());
+      default:
+        std::cerr << "Error: Only 2D and 3D padding sizes are supported." << std::endl;
       }
     }
     break;
@@ -481,6 +516,8 @@ torch::Tensor expand(torch::Tensor inData, IntArrayRef padding) {
         return expand2d<int64_t>(inData, padding.data());
       case 3:
         return expand3d<int64_t>(inData, padding.data());
+      default:
+        std::cerr << "Error: Only 2D and 3D padding sizes are supported." << std::endl;
       }
     }
     break;
@@ -491,6 +528,8 @@ torch::Tensor expand(torch::Tensor inData, IntArrayRef padding) {
         return expand2d<float>(inData, padding.data());
       case 3:
         return expand3d<float>(inData, padding.data());
+      default:
+        std::cerr << "Error: Only 2D and 3D padding sizes are supported." << std::endl;
       }
     }
     break;
@@ -501,10 +540,13 @@ torch::Tensor expand(torch::Tensor inData, IntArrayRef padding) {
         return expand2d<double>(inData, padding.data());
       case 3:
         return expand3d<double>(inData, padding.data());
+      default:
+        std::cerr << "Error: Only 2D and 3D padding sizes are supported." << std::endl;
       }
     }
     break;
   default:
+    std::cerr << "Error: Only torch.{uint8,int8,int16,int32,int64,float32,float64} are supported." << std::endl;
     return torch::Tensor();
   }
 
