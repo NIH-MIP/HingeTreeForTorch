@@ -1,0 +1,7 @@
+include GreedyInit.h
+include MedianInit.h
+include HingeTreeCommon.h
+include HingeTreeCommon.cuh
+include HingeTrieCommon.h
+include Timer.h
+include ImageToMatrix.h
