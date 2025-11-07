@@ -36,7 +36,7 @@ if torch.cuda.is_available():
   extraCudaFlags.append('-DWITH_CUDA=1')
 
   setup(name='hingetree_cpp', 
-      version='1.1.1',
+      version='1.1.2',
       description='Port of random hinge forest for PyTorch.',
       author='Nathan Lay',
       author_email='enslay@gmail.com',
@@ -46,7 +46,7 @@ if torch.cuda.is_available():
       cmdclass={'build_ext': cpp_extension.BuildExtension})
 else:
   setup(name='hingetree_cpp', 
-      version='1.1.1',
+      version='1.1.2',
       description='Port of random hinge forest for PyTorch.',
       author='Nathan Lay',
       author_email='enslay@gmail.com',

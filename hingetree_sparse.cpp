@@ -35,6 +35,8 @@
 #include "MedianInit.h"
 #include "GreedyInit.h"
 
+#include "hingetree_error.h"
+
 typedef c10::IntArrayRef IntArrayRef;
 
 namespace {
@@ -55,7 +57,7 @@ torch::Tensor unordered_map_to_sparse(const std::unordered_map<int64_t, RealType
 	});
 	
   if (minMaxKey.first->first < 0 || minMaxKey.second->first >= i64MaxIndex) {
-	std::cerr << "Error: Invalid linear index encountered." << std::endl;  
+	OutOfRangeStream("Error: Invalid linear index encountered.").raise();
     return torch::Tensor();
   }
   
@@ -108,11 +110,13 @@ std::vector<torch::Tensor> sparse_hingetree_fused_linear_gpu_backward(torch::Ten
 #ifndef WITH_CUDA
 template<typename RealType, typename TreeTraitsType>
 std::vector<torch::Tensor> sparse_hingetree_gpu_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad) {
+  RunTimeErrorStream("Error: GPU support not compiled in.").raise();
   return std::vector<torch::Tensor>();
 }
 
 template<typename RealType, typename TreeTraitsType>
 std::vector<torch::Tensor> sparse_hingetree_fused_linear_gpu_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor inLinearWeights, bool bInLinearWeightsGrad, torch::Tensor inLinearBias, bool bInLinearBiasGrad, torch::Tensor outDataGrad) {
+  RunTimeErrorStream("Error: GPU support not compiled in.").raise();
   return std::vector<torch::Tensor>();
 }
 #endif // !WITH_CUDA
@@ -121,17 +125,17 @@ template<typename RealType, typename TreeTraitsType>
 std::vector<torch::Tensor> sparse_hingetree_cpu_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad) {
   typedef typename TreeTraitsType::KeyType KeyType;
   if (bInOrdinalsGrad) { // Not differentiable, ever!
-    std::cerr << "Error: Gradient on inOrdinals is requested, but inOrdinals never has a gradient." << std::endl;
+    RunTimeErrorStream("Error: Gradient on inOrdinals is requested, but inOrdinals never has a gradient.").raise();
     return std::vector<torch::Tensor>();
   }
   
   if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2 || outDataGrad.dim() < 2) {
-    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
+    InvalidArgumentStream("Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
-    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
+    InvalidArgumentStream("Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0].").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -140,7 +144,9 @@ std::vector<torch::Tensor> sparse_hingetree_cpu_backward(torch::Tensor inData, b
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
   if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
-    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
+    RunTimeErrorStream ss;
+    ss << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ").";
+    ss.raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -149,7 +155,7 @@ std::vector<torch::Tensor> sparse_hingetree_cpu_backward(torch::Tensor inData, b
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
   if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels) {
-    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
+    RunTimeErrorStream("Error: An ordinal value is either negative or larger than or equal to the number of channels.").raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -177,7 +183,9 @@ std::vector<torch::Tensor> sparse_hingetree_cpu_backward(torch::Tensor inData, b
 
   // Sanity check on outDataGrad
   if (outDataGrad.sizes() != IntArrayRef(vSizes.data(), vSizes.size())) {
-    std::cerr << "Error: outDataGrad.shape does not match the expected shape (" << outDataGrad.sizes() << " != " << IntArrayRef(vSizes.data(), vSizes.size()) << ")." << std::endl;
+    InvalidArgumentStream ss;
+    ss << "Error: outDataGrad.shape does not match the expected shape (" << outDataGrad.sizes() << " != " << IntArrayRef(vSizes.data(), vSizes.size()) << ").";
+    ss.raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -292,17 +300,17 @@ std::vector<torch::Tensor> sparse_hingetree_fused_linear_cpu_backward(torch::Ten
   typedef typename TreeTraitsType::KeyType KeyType;
   
   if (bInOrdinalsGrad) { // Not differentiable, ever!
-    std::cerr << "Error: Gradient on inOrdinals is requested, but inOrdinals never has a gradient." << std::endl;
+    RunTimeErrorStream("Error: Gradient on inOrdinals is requested, but inOrdinals never has a gradient.").raise();
     return std::vector<torch::Tensor>();
   }
   
   if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2 || inLinearWeights.dim() != 2 || inLinearBias.dim() != 1 || outDataGrad.dim() < 2) {
-    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds, inOrdinals, inLinearWeights must have 2 dimensions. inLinearBias must have 1 dimension." << std::endl;
+    InvalidArgumentStream("Error: inData, inWeights must have at least 2 dimensions. inThresholds, inOrdinals, inLinearWeights must have 2 dimensions. inLinearBias must have 1 dimension.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0] || inWeights.sizes()[0] != inLinearWeights.sizes()[1] || inLinearWeights.sizes()[0] != inLinearBias.sizes()[0]) {
-    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]. inLinearWeightrs.shape[0] must be the same as inLinearBias.shape[0]." << std::endl;
+    InvalidArgumentStream("Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]. inLinearWeightrs.shape[0] must be the same as inLinearBias.shape[0].").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -311,7 +319,9 @@ std::vector<torch::Tensor> sparse_hingetree_fused_linear_cpu_backward(torch::Ten
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
   if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
-    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
+    RunTimeErrorStream ss;
+    ss << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ").";
+    ss.raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -321,7 +331,7 @@ std::vector<torch::Tensor> sparse_hingetree_fused_linear_cpu_backward(torch::Ten
   const int64_t i64OutChannels = inLinearWeights.sizes()[0];
 
   if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels) {
-    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
+    RunTimeErrorStream("Error: An ordinal value is either negative or larger than or equal to the number of channels.").raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -350,7 +360,9 @@ std::vector<torch::Tensor> sparse_hingetree_fused_linear_cpu_backward(torch::Ten
 
   // Sanity check on outDataGrad
   if (outDataGrad.sizes() != IntArrayRef(vSizes.data(), vSizes.size())) {
-    std::cerr << "Error: outDataGrad.shape does not match the expected shape (" << outDataGrad.sizes() << " != " << IntArrayRef(vSizes.data(), vSizes.size()) << ")." << std::endl;
+    InvalidArgumentStream ss;
+    ss << "Error: outDataGrad.shape does not match the expected shape (" << outDataGrad.sizes() << " != " << IntArrayRef(vSizes.data(), vSizes.size()) << ").";
+    ss.raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -520,17 +532,17 @@ std::vector<torch::Tensor> sparse_hingetree_fused_linear_cpu_backward(torch::Ten
 
 std::vector<torch::Tensor> sparse_hingetree_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype() || inData.dtype() != outDataGrad.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return std::vector<torch::Tensor>();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device() || inData.device() != outDataGrad.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous() || !outDataGrad.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -558,7 +570,7 @@ std::vector<torch::Tensor> sparse_hingetree_backward(torch::Tensor inData, bool 
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -567,17 +579,17 @@ std::vector<torch::Tensor> sparse_hingetree_backward(torch::Tensor inData, bool 
 
 std::vector<torch::Tensor> sparse_hingefern_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype() || inData.dtype() != outDataGrad.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return std::vector<torch::Tensor>();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device() || inData.device() != outDataGrad.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous() || !outDataGrad.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -605,7 +617,7 @@ std::vector<torch::Tensor> sparse_hingefern_backward(torch::Tensor inData, bool 
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -614,17 +626,17 @@ std::vector<torch::Tensor> sparse_hingefern_backward(torch::Tensor inData, bool 
 
 std::vector<torch::Tensor> sparse_hingetree_fused_linear_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor inLinearWeights, bool bInLinearWeightsGrad, torch::Tensor inLinearBias, bool bInLinearBiasGrad, torch::Tensor outDataGrad) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype() || inData.dtype() != inLinearWeights.dtype() || inData.dtype() != inLinearBias.dtype() || inData.dtype() != outDataGrad.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights, inLinearWeights, inLinearBias, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights, inLinearWeights, inLinearBias, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return std::vector<torch::Tensor>();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device() || inData.device() != inLinearWeights.device() || inData.device() != inLinearBias.device() || inData.device() != outDataGrad.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous() || !inLinearWeights.is_contiguous() || !inLinearBias.is_contiguous() || !outDataGrad.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -652,7 +664,7 @@ std::vector<torch::Tensor> sparse_hingetree_fused_linear_backward(torch::Tensor 
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -661,17 +673,17 @@ std::vector<torch::Tensor> sparse_hingetree_fused_linear_backward(torch::Tensor 
 
 std::vector<torch::Tensor> sparse_hingefern_fused_linear_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor inLinearWeights, bool bInLinearWeightsGrad, torch::Tensor inLinearBias, bool bInLinearBiasGrad, torch::Tensor outDataGrad) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype() || inData.dtype() != inLinearWeights.dtype() || inData.dtype() != inLinearBias.dtype() || inData.dtype() != outDataGrad.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights, inLinearWeights, inLinearBias, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights, inLinearWeights, inLinearBias, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return std::vector<torch::Tensor>();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device() || inData.device() != inLinearWeights.device() || inData.device() != inLinearBias.device() || inData.device() != outDataGrad.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous() || !inLinearWeights.is_contiguous() || !inLinearBias.is_contiguous() || !outDataGrad.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -699,7 +711,7 @@ std::vector<torch::Tensor> sparse_hingefern_fused_linear_backward(torch::Tensor 
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return std::vector<torch::Tensor>();
   }
   

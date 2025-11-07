@@ -19,6 +19,8 @@
 #include <iostream>
 #include "torch/extension.h"
 
+#include "hingetree_error.h"
+
 typedef c10::IntArrayRef IntArrayRef;
 
 // From: https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html
@@ -196,7 +198,7 @@ __global__ void expand3d_kernel(RealType *d_outData, const RealType *d_inData, S
 template<typename RealType>
 torch::Tensor contract2d_gpu(torch::Tensor inData, const int64_t a_i64Window[2], const int64_t a_i64Padding[2]) {
   if (inData.dim() != 4 || a_i64Padding[0] < 0 || a_i64Padding[1] < 0) {
-    std::cerr << "Error: inData must have 4 dimensions. Padding must be non-negative." << std::endl;
+    InvalidArgumentStream("Error: inData must have 4 dimensions. Padding must be non-negative.").raise();
     return torch::Tensor();
   }
 
@@ -206,7 +208,7 @@ torch::Tensor contract2d_gpu(torch::Tensor inData, const int64_t a_i64Window[2],
   const int64_t i64Width = inData.sizes()[3];
 
   if (a_i64Window[0] < 1 || a_i64Window[1] < 1 || a_i64Window[0] > i64Height + 2*a_i64Padding[0] || a_i64Window[1] > i64Width + 2*a_i64Padding[1]) {
-    std::cerr << "Error: Window dimensions must be at least 1 but no greater than the size of the padded image." << std::endl;
+    InvalidArgumentStream("Error: Window dimensions must be at least 1 but no greater than the size of the padded image.").raise();
     return torch::Tensor();
   }
 
@@ -243,7 +245,7 @@ torch::Tensor contract2d_gpu(torch::Tensor inData, const int64_t a_i64Window[2],
 template<typename RealType>
 torch::Tensor contract3d_gpu(torch::Tensor inData, const int64_t a_i64Window[3], const int64_t a_i64Padding[3]) {
   if (inData.dim() != 5 || a_i64Padding[0] < 0 || a_i64Padding[1] < 0 || a_i64Padding[2] < 0) {
-    std::cerr << "Error: inData must have 5 dimensions. Padding must be non-negative." << std::endl;
+    InvalidArgumentStream("Error: inData must have 5 dimensions. Padding must be non-negative.").raise();
     return torch::Tensor();
   }
 
@@ -254,7 +256,7 @@ torch::Tensor contract3d_gpu(torch::Tensor inData, const int64_t a_i64Window[3],
   const int64_t i64Width = inData.sizes()[4];
 
   if (a_i64Window[0] < 1 || a_i64Window[1] < 1 || a_i64Window[2] < 1 || a_i64Window[0] > i64Depth + 2*a_i64Padding[0] || a_i64Window[1] > i64Height + 2*a_i64Padding[1] || a_i64Window[2] > i64Width + 2*a_i64Padding[2]) {
-    std::cerr << "Error: Window dimensions must be at least 1 but no greater than the size of the padded image." << std::endl;
+    InvalidArgumentStream("Error: Window dimensions must be at least 1 but no greater than the size of the padded image.").raise();
     return torch::Tensor();
   }
 
@@ -295,7 +297,7 @@ torch::Tensor contract3d_gpu(torch::Tensor inData, const int64_t a_i64Window[3],
 template<typename RealType>
 torch::Tensor expand2d_gpu(torch::Tensor inData, const int64_t a_i64Padding[2]) {
   if (inData.dim() != 6 || a_i64Padding[0] < 0 || a_i64Padding[1] < 0) {
-    std::cerr << "Error: inData must have 6 dimensions. Padding must be non-negative." << std::endl;
+    InvalidArgumentStream("Error: inData must have 6 dimensions. Padding must be non-negative.").raise();
     return torch::Tensor();
   }
 
@@ -306,7 +308,7 @@ torch::Tensor expand2d_gpu(torch::Tensor inData, const int64_t a_i64Padding[2]) 
   const int64_t i64Width = inData.sizes()[3]*a_i64Window[1] - ((2*a_i64Padding[1])/a_i64Window[1])*a_i64Window[1];
 
   if (i64Height < 1 || i64Width < 1 ) {
-    std::cerr << "Error: The expanded size of the image must be non-empty." << std::endl;
+    InvalidArgumentStream("Error: The expanded size of the image must be non-empty.").raise();
     return torch::Tensor();
   }
  
@@ -343,7 +345,7 @@ torch::Tensor expand2d_gpu(torch::Tensor inData, const int64_t a_i64Padding[2]) 
 template<typename RealType>
 torch::Tensor expand3d_gpu(torch::Tensor inData, const int64_t a_i64Padding[2]) {
   if (inData.dim() != 8 || a_i64Padding[0] < 0 || a_i64Padding[1] < 0 || a_i64Padding[2] < 0) {
-    std::cerr << "Error: inData must have 8 dimensions. Padding must be non-negative." << std::endl;
+    InvalidArgumentStream("Error: inData must have 8 dimensions. Padding must be non-negative.").raise();
     return torch::Tensor();
   }
 
@@ -355,7 +357,7 @@ torch::Tensor expand3d_gpu(torch::Tensor inData, const int64_t a_i64Padding[2]) 
   const int64_t i64Width = inData.sizes()[4]*a_i64Window[2] - ((2*a_i64Padding[2])/a_i64Window[2])*a_i64Window[2];
 
   if (i64Depth < 1 || i64Height < 1 || i64Width < 1) {
-    std::cerr << "Error: The expanded size of the image must be non-empty." << std::endl;
+    InvalidArgumentStream("Error: The expanded size of the image must be non-empty.").raise();
     return torch::Tensor();
   }
 

@@ -28,6 +28,8 @@
 
 #include "torch/extension.h"
 
+#include "hingetree_error.h"
+
 typedef c10::IntArrayRef IntArrayRef;
 
 // PyTorch can't fold/unfold 3D volumes. I'll just write my own...
@@ -35,7 +37,7 @@ typedef c10::IntArrayRef IntArrayRef;
 template<typename RealType>
 torch::Tensor contract2d_cpu(torch::Tensor inData, const int64_t a_i64Window[2], const int64_t a_i64Padding[2]) {
   if (inData.dim() != 4 || a_i64Padding[0] < 0 || a_i64Padding[1] < 0) {
-    std::cerr << "Error: inData must have 4 dimensions. Padding must be non-negative." << std::endl;
+    InvalidArgumentStream("Error: inData must have 4 dimensions. Padding must be non-negative.").raise();
     return torch::Tensor();
   }
 
@@ -45,7 +47,7 @@ torch::Tensor contract2d_cpu(torch::Tensor inData, const int64_t a_i64Window[2],
   const int64_t i64Width = inData.sizes()[3];
 
   if (a_i64Window[0] < 1 || a_i64Window[1] < 1 || a_i64Window[0] > i64Height + 2*a_i64Padding[0] || a_i64Window[1] > i64Width + 2*a_i64Padding[1]) {
-    std::cerr << "Error: Window dimensions must be at least 1 but no greater than the size of the padded image." << std::endl;
+    InvalidArgumentStream("Error: Window dimensions must be at least 1 but no greater than the size of the padded image.").raise();
     return torch::Tensor();
   }
 
@@ -95,7 +97,7 @@ torch::Tensor contract2d_cpu(torch::Tensor inData, const int64_t a_i64Window[2],
 template<typename RealType>
 torch::Tensor contract3d_cpu(torch::Tensor inData, const int64_t a_i64Window[3], const int64_t a_i64Padding[3]) {
   if (inData.dim() != 5 || a_i64Padding[0] < 0 || a_i64Padding[1] < 0 || a_i64Padding[2] < 0) {
-    std::cerr << "Error: inData must have 5 dimensions. Padding must be non-negative." << std::endl;
+    InvalidArgumentStream("Error: inData must have 5 dimensions. Padding must be non-negative.").raise();
     return torch::Tensor();
   }
 
@@ -106,7 +108,7 @@ torch::Tensor contract3d_cpu(torch::Tensor inData, const int64_t a_i64Window[3],
   const int64_t i64Width = inData.sizes()[4];
 
   if (a_i64Window[0] < 1 || a_i64Window[1] < 1 || a_i64Window[2] < 1 || a_i64Window[0] > i64Depth + 2*a_i64Padding[0] || a_i64Window[1] > i64Height + 2*a_i64Padding[1] || a_i64Window[2] > i64Width + 2*a_i64Padding[2]) {
-    std::cerr << "Error: Window dimensions must be at least 1 but no greater than the size of the padded image." << std::endl;
+    InvalidArgumentStream("Error: Window dimensions must be at least 1 but no greater than the size of the padded image.").raise();
     return torch::Tensor();
   }
 
@@ -167,7 +169,7 @@ torch::Tensor contract3d_cpu(torch::Tensor inData, const int64_t a_i64Window[3],
 template<typename RealType>
 torch::Tensor expand2d_cpu(torch::Tensor inData, const int64_t a_i64Padding[2]) {
   if (inData.dim() != 6 || a_i64Padding[0] < 0 || a_i64Padding[1] < 0) {
-    std::cerr << "Error: inData must have 6 dimensions. Padding must be non-negative." << std::endl;
+    InvalidArgumentStream("Error: inData must have 6 dimensions. Padding must be non-negative.").raise();
     return torch::Tensor();
   }
 
@@ -179,7 +181,7 @@ torch::Tensor expand2d_cpu(torch::Tensor inData, const int64_t a_i64Padding[2]) 
   const int64_t i64Width = inData.sizes()[3]*a_i64Window[1] - ((2*a_i64Padding[1])/a_i64Window[1])*a_i64Window[1];
 
   if (i64Height < 1 || i64Width < 1 ) {
-    std::cerr << "Error: The expanded size of the image must be non-empty." << std::endl;
+    InvalidArgumentStream("Error: The expanded size of the image must be non-empty.").raise();
     return torch::Tensor();
   }
  
@@ -227,7 +229,7 @@ torch::Tensor expand2d_cpu(torch::Tensor inData, const int64_t a_i64Padding[2]) 
 template<typename RealType>
 torch::Tensor expand3d_cpu(torch::Tensor inData, const int64_t a_i64Padding[2]) {
   if (inData.dim() != 8 || a_i64Padding[0] < 0 || a_i64Padding[1] < 0 || a_i64Padding[2] < 0) {
-    std::cerr << "Error: inData must have 8 dimensions. Padding must be non-negative." << std::endl;
+    InvalidArgumentStream("Error: inData must have 8 dimensions. Padding must be non-negative.").raise();
     return torch::Tensor();
   }
 
@@ -239,7 +241,7 @@ torch::Tensor expand3d_cpu(torch::Tensor inData, const int64_t a_i64Padding[2]) 
   const int64_t i64Width = inData.sizes()[4]*a_i64Window[2] - ((2*a_i64Padding[2])/a_i64Window[2])*a_i64Window[2];
 
   if (i64Depth < 1 || i64Height < 1 || i64Width < 1) {
-    std::cerr << "Error: The expanded size of the image must be non-empty." << std::endl;
+    InvalidArgumentStream("Error: The expanded size of the image must be non-empty.").raise();
     return torch::Tensor();
   }
  
@@ -309,21 +311,25 @@ torch::Tensor expand3d_gpu(torch::Tensor inData, const int64_t a_i64Padding[3]);
 #else // !WITH_CUDA
 template<typename RealType>
 torch::Tensor contract2d_gpu(torch::Tensor, const int64_t *, const int64_t *) { 
+  RunTimeErrorStream("Error: GPU support not compiled in.").raise();
   return torch::Tensor();
 }
 
 template<typename RealType>
 torch::Tensor contract3d_gpu(torch::Tensor, const int64_t *, const int64_t *) {
+  RunTimeErrorStream("Error: GPU support not compiled in.").raise();
   return torch::Tensor();
 }
 
 template<typename RealType>
 torch::Tensor expand2d_gpu(torch::Tensor, const int64_t *) {
+  RunTimeErrorStream("Error: GPU support not compiled in.").raise();
   return torch::Tensor();
 }
 
 template<typename RealType>
 torch::Tensor expand3d_gpu(torch::Tensor, const int64_t *) {
+  RunTimeErrorStream("Error: GPU support not compiled in.").raise();
   return torch::Tensor();
 }
 #endif // !WITH_CUDA
@@ -346,12 +352,12 @@ torch::Tensor contract3d(torch::Tensor inData, const int64_t a_i64Window[3], con
 
 torch::Tensor contract(torch::Tensor inData, IntArrayRef window, IntArrayRef padding) {
   if (window.empty() || window.size() != padding.size()) {
-    std::cerr << "Error: window and padding must be non-empty and the same size." << std::endl;
+    InvalidArgumentStream("Error: window and padding must be non-empty and the same size.").raise();
     return torch::Tensor();
   }
 
   if (!inData.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return torch::Tensor();
   }
 
@@ -366,7 +372,7 @@ torch::Tensor contract(torch::Tensor inData, IntArrayRef window, IntArrayRef pad
       case 3:
         return contract3d<uint8_t>(inData, window.data(), padding.data());
       default:
-        std::cerr << "Error: Only 2D and 3D window sizes are supported." << std::endl;
+        InvalidArgumentStream("Error: Only 2D and 3D window sizes are supported.").raise();
       }
     }
     break;
@@ -378,7 +384,7 @@ torch::Tensor contract(torch::Tensor inData, IntArrayRef window, IntArrayRef pad
       case 3:
         return contract3d<int8_t>(inData, window.data(), padding.data());
       default:
-        std::cerr << "Error: Only 2D and 3D window sizes are supported." << std::endl;
+        InvalidArgumentStream("Error: Only 2D and 3D window sizes are supported.").raise();
       }
     }
     break;
@@ -390,7 +396,7 @@ torch::Tensor contract(torch::Tensor inData, IntArrayRef window, IntArrayRef pad
       case 3:
         return contract3d<int16_t>(inData, window.data(), padding.data());
       default:
-        std::cerr << "Error: Only 2D and 3D window sizes are supported." << std::endl;
+        InvalidArgumentStream("Error: Only 2D and 3D window sizes are supported.").raise();
       }
     }
     break;
@@ -402,7 +408,7 @@ torch::Tensor contract(torch::Tensor inData, IntArrayRef window, IntArrayRef pad
       case 3:
         return contract3d<int32_t>(inData, window.data(), padding.data());
       default:
-        std::cerr << "Error: Only 2D and 3D window sizes are supported." << std::endl;
+        InvalidArgumentStream("Error: Only 2D and 3D window sizes are supported.").raise();
       }
     }
     break;
@@ -414,7 +420,7 @@ torch::Tensor contract(torch::Tensor inData, IntArrayRef window, IntArrayRef pad
       case 3:
         return contract3d<int64_t>(inData, window.data(), padding.data());
       default:
-        std::cerr << "Error: Only 2D and 3D window sizes are supported." << std::endl;
+        InvalidArgumentStream("Error: Only 2D and 3D window sizes are supported.").raise();
       }
     }
     break;
@@ -426,7 +432,7 @@ torch::Tensor contract(torch::Tensor inData, IntArrayRef window, IntArrayRef pad
       case 3:
         return contract3d<float>(inData, window.data(), padding.data());
       default:
-        std::cerr << "Error: Only 2D and 3D window sizes are supported." << std::endl;
+        InvalidArgumentStream("Error: Only 2D and 3D window sizes are supported.").raise();
       }
     }
     break;
@@ -438,12 +444,12 @@ torch::Tensor contract(torch::Tensor inData, IntArrayRef window, IntArrayRef pad
       case 3:
         return contract3d<double>(inData, window.data(), padding.data());
       default:
-        std::cerr << "Error: Only 2D and 3D window sizes are supported." << std::endl;
+        InvalidArgumentStream("Error: Only 2D and 3D window sizes are supported.").raise();
       }
     }
     break;
   default:
-    std::cerr << "Error: Only torch.{uint8,int8,int16,int32,int64,float32,float64} are supported." << std::endl;
+    InvalidArgumentStream("Error: Only torch.{uint8,int8,int16,int32,int64,float32,float64} are supported.").raise();
     return torch::Tensor();
   }
 
@@ -468,12 +474,12 @@ torch::Tensor expand3d(torch::Tensor inData, const int64_t a_i64Padding[3]) {
 
 torch::Tensor expand(torch::Tensor inData, IntArrayRef padding) {
   if (padding.empty()) {
-    std::cerr << "Error: padding must be non-empty." << std::endl;
+    InvalidArgumentStream("Error: padding must be non-empty.").raise();
     return torch::Tensor();
   }
 
   if (!inData.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return torch::Tensor();
   }
 
@@ -488,7 +494,7 @@ torch::Tensor expand(torch::Tensor inData, IntArrayRef padding) {
       case 3:
         return expand3d<uint8_t>(inData, padding.data());
       default:
-        std::cerr << "Error: Only 2D and 3D padding sizes are supported." << std::endl;
+        InvalidArgumentStream("Error: Only 2D and 3D padding sizes are supported.").raise();
       }
     }
     break;
@@ -510,7 +516,7 @@ torch::Tensor expand(torch::Tensor inData, IntArrayRef padding) {
       case 3:
         return expand3d<int16_t>(inData, padding.data());
       default:
-        std::cerr << "Error: Only 2D and 3D padding sizes are supported." << std::endl;
+        InvalidArgumentStream("Error: Only 2D and 3D padding sizes are supported.").raise();
       }
     }
     break;
@@ -522,7 +528,7 @@ torch::Tensor expand(torch::Tensor inData, IntArrayRef padding) {
       case 3:
         return expand3d<int32_t>(inData, padding.data());
       default:
-        std::cerr << "Error: Only 2D and 3D padding sizes are supported." << std::endl;
+        InvalidArgumentStream("Error: Only 2D and 3D padding sizes are supported.").raise();
       }
     }
     break;
@@ -534,7 +540,7 @@ torch::Tensor expand(torch::Tensor inData, IntArrayRef padding) {
       case 3:
         return expand3d<int64_t>(inData, padding.data());
       default:
-        std::cerr << "Error: Only 2D and 3D padding sizes are supported." << std::endl;
+        InvalidArgumentStream("Error: Only 2D and 3D padding sizes are supported.").raise();
       }
     }
     break;
@@ -546,7 +552,7 @@ torch::Tensor expand(torch::Tensor inData, IntArrayRef padding) {
       case 3:
         return expand3d<float>(inData, padding.data());
       default:
-        std::cerr << "Error: Only 2D and 3D padding sizes are supported." << std::endl;
+        InvalidArgumentStream("Error: Only 2D and 3D padding sizes are supported.").raise();
       }
     }
     break;
@@ -558,12 +564,12 @@ torch::Tensor expand(torch::Tensor inData, IntArrayRef padding) {
       case 3:
         return expand3d<double>(inData, padding.data());
       default:
-        std::cerr << "Error: Only 2D and 3D padding sizes are supported." << std::endl;
+        InvalidArgumentStream("Error: Only 2D and 3D padding sizes are supported.").raise();
       }
     }
     break;
   default:
-    std::cerr << "Error: Only torch.{uint8,int8,int16,int32,int64,float32,float64} are supported." << std::endl;
+    InvalidArgumentStream("Error: Only torch.{uint8,int8,int16,int32,int64,float32,float64} are supported.").raise();
     return torch::Tensor();
   }
 

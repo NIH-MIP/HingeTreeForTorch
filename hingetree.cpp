@@ -33,6 +33,8 @@
 #include "MedianInit.h"
 #include "GreedyInit.h"
 
+#include "hingetree_error.h"
+
 typedef c10::IntArrayRef IntArrayRef;
 
 // Broken in PyTorch 1.13
@@ -62,12 +64,12 @@ torch::Tensor hingetree_cpu_forward(torch::Tensor inData, torch::Tensor inThresh
   typedef typename TreeTraitsType::KeyType KeyType;
   
   if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
-    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
+    InvalidArgumentStream("Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions.").raise();
     return torch::Tensor();
   }
 
   if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
-    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
+    InvalidArgumentStream("Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0].").raise();
     return torch::Tensor();
   }
   
@@ -76,7 +78,9 @@ torch::Tensor hingetree_cpu_forward(torch::Tensor inData, torch::Tensor inThresh
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
   if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
-    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
+    RunTimeErrorStream ss;
+    ss << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ").";
+    ss.raise();
     return torch::Tensor();
   }
 
@@ -85,7 +89,7 @@ torch::Tensor hingetree_cpu_forward(torch::Tensor inData, torch::Tensor inThresh
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
   if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels) {
-    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
+    RunTimeErrorStream("Error: An ordinal value is either negative or larger than or equal to the number of channels.").raise();
     return torch::Tensor();
   }
 
@@ -153,17 +157,17 @@ std::vector<torch::Tensor> hingetree_cpu_backward(torch::Tensor inData, bool bIn
   typedef typename TreeTraitsType::KeyType KeyType;
   
   if (bInOrdinalsGrad) { // Not differentiable, ever!
-    std::cerr << "Error: Gradient on inOrdinals is requested, but inOrdinals never has a gradient." << std::endl;
+    RunTimeErrorStream("Error: Gradient on inOrdinals is requested, but inOrdinals never has a gradient.").raise();
     return std::vector<torch::Tensor>();
   }
   
   if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2 || outDataGrad.dim() < 2) {
-    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
+    InvalidArgumentStream("Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
-    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
+    InvalidArgumentStream("Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0].").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -172,7 +176,9 @@ std::vector<torch::Tensor> hingetree_cpu_backward(torch::Tensor inData, bool bIn
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
   if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
-    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
+    RunTimeErrorStream ss;
+    ss << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ").";
+    ss.raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -181,7 +187,7 @@ std::vector<torch::Tensor> hingetree_cpu_backward(torch::Tensor inData, bool bIn
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
   if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels) {
-    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
+    RunTimeErrorStream("Error: An ordinal value is either negative or larger than or equal to the number of channels.").raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -209,7 +215,9 @@ std::vector<torch::Tensor> hingetree_cpu_backward(torch::Tensor inData, bool bIn
 
   // Sanity check on outDataGrad
   if (outDataGrad.sizes() != IntArrayRef(vSizes.data(), vSizes.size())) {
-    std::cerr << "Error: outDataGrad.shape does not match the expected shape (" << outDataGrad.sizes() << " != " << IntArrayRef(vSizes.data(), vSizes.size()) << ")." << std::endl;
+    InvalidArgumentStream ss;
+    ss << "Error: outDataGrad.shape does not match the expected shape (" << outDataGrad.sizes() << " != " << IntArrayRef(vSizes.data(), vSizes.size()) << ").";
+    ss.raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -307,12 +315,12 @@ torch::Tensor hingetree_cpu_leafmap(torch::Tensor inData, torch::Tensor inThresh
   typedef typename TreeTraitsType::KeyType KeyType;
   
   if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
-    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
+    InvalidArgumentStream("Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions.").raise();
     return torch::Tensor();
   }
 
   if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
-    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
+    InvalidArgumentStream("Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0].").raise();
     return torch::Tensor();
   }
   
@@ -321,7 +329,9 @@ torch::Tensor hingetree_cpu_leafmap(torch::Tensor inData, torch::Tensor inThresh
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
   if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
-    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
+    RunTimeErrorStream ss;
+    ss << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ").";
+    ss.raise();
     return torch::Tensor();
   }
 
@@ -330,7 +340,7 @@ torch::Tensor hingetree_cpu_leafmap(torch::Tensor inData, torch::Tensor inThresh
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
   if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels) {
-    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
+    RunTimeErrorStream("Error: An ordinal value is either negative or larger than or equal to the number of channels.").raise();
     return torch::Tensor();
   }
 
@@ -383,12 +393,12 @@ std::vector<torch::Tensor> hingetree_cpu_marginmap(torch::Tensor inData, torch::
   typedef typename TreeTraitsType::KeyType KeyType;
   
   if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
-    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
+    InvalidArgumentStream("Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
-    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
+    InvalidArgumentStream("Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0].").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -397,7 +407,9 @@ std::vector<torch::Tensor> hingetree_cpu_marginmap(torch::Tensor inData, torch::
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
   if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
-    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
+    RunTimeErrorStream ss;
+    ss << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ").";
+    ss.raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -406,7 +418,7 @@ std::vector<torch::Tensor> hingetree_cpu_marginmap(torch::Tensor inData, torch::
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
   if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels) {
-    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
+    RunTimeErrorStream("Error: An ordinal value is either negative or larger than or equal to the number of channels.").raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -460,34 +472,53 @@ std::vector<torch::Tensor> hingetree_cpu_marginmap(torch::Tensor inData, torch::
 }
 
 #ifndef WITH_CUDA
+// XXX: These should never be called
 template<typename RealType, typename TreeTraitsType>
-torch::Tensor hingetree_gpu_forward(torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor) { return torch::Tensor(); }
+torch::Tensor hingetree_gpu_forward(torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor) { 
+  RunTimeErrorStream("Error: GPU support not compiled in.").raise();
+  return torch::Tensor(); 
+}
 
 template<typename RealType, typename TreeTraitsType>
-std::vector<torch::Tensor> hingetree_gpu_backward(torch::Tensor, bool, torch::Tensor, bool, torch::Tensor, bool, torch::Tensor, bool, torch::Tensor) { return std::vector<torch::Tensor>(); }
+std::vector<torch::Tensor> hingetree_gpu_backward(torch::Tensor, bool, torch::Tensor, bool, torch::Tensor, bool, torch::Tensor, bool, torch::Tensor) { 
+  RunTimeErrorStream("Error: GPU support not compiled in.").raise();
+  return std::vector<torch::Tensor>(); 
+}
 
 template<typename RealType, typename TreeTraitsType>
-std::vector<torch::Tensor> hingetree_gpu_backward_deterministic(torch::Tensor, bool, torch::Tensor, bool, torch::Tensor, bool, torch::Tensor, bool, torch::Tensor) { return std::vector<torch::Tensor>(); }
+std::vector<torch::Tensor> hingetree_gpu_backward_deterministic(torch::Tensor, bool, torch::Tensor, bool, torch::Tensor, bool, torch::Tensor, bool, torch::Tensor) { 
+  RunTimeErrorStream("Error: GPU support not compiled in.").raise();
+  return std::vector<torch::Tensor>(); 
+}
 
 template<typename RealType, typename TreeTraitsType>
-torch::Tensor hingetree_gpu_reachability(torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor) { return torch::Tensor(); }
+torch::Tensor hingetree_gpu_reachability(torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor) { 
+  RunTimeErrorStream("Error: GPU support not compiled in.").raise();
+  return torch::Tensor(); 
+}
 
 template<typename RealType, typename TreeTraitsType>
-torch::Tensor hingetree_gpu_leafmap(torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor) { return torch::Tensor(); }
+torch::Tensor hingetree_gpu_leafmap(torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor) { 
+  RunTimeErrorStream("Error: GPU support not compiled in.").raise();
+  return torch::Tensor(); 
+}
 
 template<typename RealType, typename TreeTraitsType>
-std::vector<torch::Tensor> hingetree_gpu_marginmap(torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor) { return std::vector<torch::Tensor>(); }
+std::vector<torch::Tensor> hingetree_gpu_marginmap(torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor) { 
+  RunTimeErrorStream("Error: GPU support not compiled in.").raise();
+  return std::vector<torch::Tensor>(); 
+}
 #endif // !WITH_CUDA
 
 template<typename RealType, typename TreeTraitsType>
 std::vector<bool> hingetree_cpu_check_thresholds(torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   if (inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
-    std::cerr << "Error: inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
+    InvalidArgumentStream("Error: inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions.").raise();
     return std::vector<bool>();
   }
 
   if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
-    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
+    InvalidArgumentStream("Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0].").raise();
     return std::vector<bool>();
   }
 
@@ -497,7 +528,9 @@ std::vector<bool> hingetree_cpu_check_thresholds(torch::Tensor inThresholds, tor
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
 
   if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
-    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
+    RunTimeErrorStream ss;
+    ss << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ").";
+    ss.raise();
     return std::vector<bool>();
   }
   
@@ -515,12 +548,12 @@ std::vector<bool> hingetree_cpu_check_thresholds(torch::Tensor inThresholds, tor
 template<typename RealType, typename TreeTraitsType>
 std::vector<bool> hingetree_cpu_fix_thresholds(torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   if (inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
-    std::cerr << "Error: inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
+    InvalidArgumentStream("Error: inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions.").raise();
     return std::vector<bool>();
   }
 
   if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
-    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
+    InvalidArgumentStream("Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0].").raise();
     return std::vector<bool>();
   }
 
@@ -530,7 +563,9 @@ std::vector<bool> hingetree_cpu_fix_thresholds(torch::Tensor inThresholds, torch
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
 
   if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
-    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
+    RunTimeErrorStream ss;
+    ss << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ").";
+    ss.raise();
     return std::vector<bool>();
   }
   
@@ -550,12 +585,12 @@ torch::Tensor hingetree_cpu_reachability(torch::Tensor inData, torch::Tensor inT
   typedef typename TreeTraitsType::KeyType KeyType;
 
   if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
-    std::cerr << "Error: inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
+    InvalidArgumentStream("Error: inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions.").raise();
     return torch::Tensor();
   }
 
   if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
-    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
+    InvalidArgumentStream("Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0].").raise();
     return torch::Tensor();
   }
 
@@ -564,7 +599,9 @@ torch::Tensor hingetree_cpu_reachability(torch::Tensor inData, torch::Tensor inT
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
   if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
-    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
+    RunTimeErrorStream ss;
+    ss << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ").";
+    ss.raise();
     return torch::Tensor();
   }
 
@@ -573,7 +610,7 @@ torch::Tensor hingetree_cpu_reachability(torch::Tensor inData, torch::Tensor inT
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
  
   if (inOrdinals.min().item<int64_t>() < 0 || inOrdinals.max().item<int64_t>() >= i64NumChannels) {
-    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
+    RunTimeErrorStream("Error: An ordinal value is either negative or larger than or equal to the number of channels.").raise();
     return torch::Tensor();
   }
 
@@ -610,17 +647,17 @@ torch::Tensor hingetree_cpu_reachability(torch::Tensor inData, torch::Tensor inT
 
 torch::Tensor hingetree_forward(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return torch::Tensor();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return torch::Tensor();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return torch::Tensor();
   }
   
@@ -648,7 +685,7 @@ torch::Tensor hingetree_forward(torch::Tensor inData, torch::Tensor inThresholds
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return torch::Tensor();
   }
   
@@ -657,17 +694,17 @@ torch::Tensor hingetree_forward(torch::Tensor inData, torch::Tensor inThresholds
 
 std::vector<torch::Tensor> hingetree_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype() || inData.dtype() != outDataGrad.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return std::vector<torch::Tensor>();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device() || inData.device() != outDataGrad.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous() || !outDataGrad.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -695,7 +732,7 @@ std::vector<torch::Tensor> hingetree_backward(torch::Tensor inData, bool bInData
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -704,17 +741,17 @@ std::vector<torch::Tensor> hingetree_backward(torch::Tensor inData, bool bInData
 
 std::vector<torch::Tensor> hingetree_backward_deterministic(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype() || inData.dtype() != outDataGrad.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return std::vector<torch::Tensor>();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device() || inData.device() != outDataGrad.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous() || !outDataGrad.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -742,7 +779,7 @@ std::vector<torch::Tensor> hingetree_backward_deterministic(torch::Tensor inData
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -751,17 +788,17 @@ std::vector<torch::Tensor> hingetree_backward_deterministic(torch::Tensor inData
 
 torch::Tensor hingefern_forward(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return torch::Tensor();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return torch::Tensor();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return torch::Tensor();
   }
 
@@ -789,7 +826,7 @@ torch::Tensor hingefern_forward(torch::Tensor inData, torch::Tensor inThresholds
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return torch::Tensor();
   }
   
@@ -798,17 +835,17 @@ torch::Tensor hingefern_forward(torch::Tensor inData, torch::Tensor inThresholds
 
 std::vector<torch::Tensor> hingefern_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype() || inData.dtype() != outDataGrad.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return std::vector<torch::Tensor>();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device() || inData.device() != outDataGrad.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous() || !outDataGrad.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -836,7 +873,7 @@ std::vector<torch::Tensor> hingefern_backward(torch::Tensor inData, bool bInData
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -845,17 +882,17 @@ std::vector<torch::Tensor> hingefern_backward(torch::Tensor inData, bool bInData
 
 std::vector<torch::Tensor> hingefern_backward_deterministic(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype() || inData.dtype() != outDataGrad.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return std::vector<torch::Tensor>();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device() || inData.device() != outDataGrad.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous() || !outDataGrad.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -883,7 +920,7 @@ std::vector<torch::Tensor> hingefern_backward_deterministic(torch::Tensor inData
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -892,17 +929,17 @@ std::vector<torch::Tensor> hingefern_backward_deterministic(torch::Tensor inData
 
 std::vector<bool> hingetree_check_thresholds(torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   if (torch::kInt64 != inOrdinals.scalar_type() || inThresholds.dtype() != inWeights.dtype()) {
-    std::cerr << "Error: inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return std::vector<bool>();
   }
 
   if (inThresholds.device() != torch::kCPU || inThresholds.device() != inOrdinals.device() || inThresholds.device() != inWeights.device()) {
-    std::cerr << "Error: All tensors are expected to be on the CPU." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the CPU.").raise();
     return std::vector<bool>();
   }
 
   if (!inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return std::vector<bool>();
   }
 
@@ -920,7 +957,7 @@ std::vector<bool> hingetree_check_thresholds(torch::Tensor inThresholds, torch::
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return std::vector<bool>();
   }
 
@@ -929,17 +966,17 @@ std::vector<bool> hingetree_check_thresholds(torch::Tensor inThresholds, torch::
 
 std::vector<bool> hingefern_check_thresholds(torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   if (torch::kInt64 != inOrdinals.scalar_type() || inThresholds.dtype() != inWeights.dtype()) {
-    std::cerr << "Error: inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return std::vector<bool>();
   }
 
   if (inThresholds.device() != torch::kCPU || inThresholds.device() != inOrdinals.device() || inThresholds.device() != inWeights.device()) {
-    std::cerr << "Error: All tensors are expected to be on the CPU." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the CPU.").raise();
     return std::vector<bool>();
   }
 
   if (!inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return std::vector<bool>();
   }
 
@@ -957,7 +994,7 @@ std::vector<bool> hingefern_check_thresholds(torch::Tensor inThresholds, torch::
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return std::vector<bool>();
   }
 
@@ -966,17 +1003,17 @@ std::vector<bool> hingefern_check_thresholds(torch::Tensor inThresholds, torch::
 
 std::vector<bool> hingetree_fix_thresholds(torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   if (torch::kInt64 != inOrdinals.scalar_type() || inThresholds.dtype() != inWeights.dtype()) {
-    std::cerr << "Error: inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return std::vector<bool>();
   }
 
   if (inThresholds.device() != torch::kCPU || inThresholds.device() != inOrdinals.device() || inThresholds.device() != inWeights.device()) {
-    std::cerr << "Error: All tensors are expected to be on the CPU." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the CPU.").raise();
     return std::vector<bool>();
   }
 
   if (!inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return std::vector<bool>();
   }
 
@@ -994,7 +1031,7 @@ std::vector<bool> hingetree_fix_thresholds(torch::Tensor inThresholds, torch::Te
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return std::vector<bool>();
   }
 
@@ -1003,17 +1040,17 @@ std::vector<bool> hingetree_fix_thresholds(torch::Tensor inThresholds, torch::Te
 
 std::vector<bool> hingefern_fix_thresholds(torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   if (torch::kInt64 != inOrdinals.scalar_type() || inThresholds.dtype() != inWeights.dtype()) {
-    std::cerr << "Error: inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return std::vector<bool>();
   }
 
   if (inThresholds.device() != torch::kCPU || inThresholds.device() != inOrdinals.device() || inThresholds.device() != inWeights.device()) {
-    std::cerr << "Error: All tensors are expected to be on the CPU." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the CPU.").raise();
     return std::vector<bool>();
   }
 
   if (!inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return std::vector<bool>();
   }
 
@@ -1031,7 +1068,7 @@ std::vector<bool> hingefern_fix_thresholds(torch::Tensor inThresholds, torch::Te
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return std::vector<bool>();
   }
 
@@ -1040,17 +1077,17 @@ std::vector<bool> hingefern_fix_thresholds(torch::Tensor inThresholds, torch::Te
 
 torch::Tensor hingetree_reachability(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return torch::Tensor();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return torch::Tensor();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return torch::Tensor();
   }
   
@@ -1078,7 +1115,7 @@ torch::Tensor hingetree_reachability(torch::Tensor inData, torch::Tensor inThres
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return torch::Tensor();
   }
   
@@ -1087,17 +1124,17 @@ torch::Tensor hingetree_reachability(torch::Tensor inData, torch::Tensor inThres
 
 torch::Tensor hingetree_leafmap(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return torch::Tensor();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return torch::Tensor();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return torch::Tensor();
   }
   
@@ -1125,7 +1162,7 @@ torch::Tensor hingetree_leafmap(torch::Tensor inData, torch::Tensor inThresholds
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return torch::Tensor();
   }
   
@@ -1134,17 +1171,17 @@ torch::Tensor hingetree_leafmap(torch::Tensor inData, torch::Tensor inThresholds
 
 std::vector<torch::Tensor> hingetree_marginmap(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return std::vector<torch::Tensor>();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -1172,7 +1209,7 @@ std::vector<torch::Tensor> hingetree_marginmap(torch::Tensor inData, torch::Tens
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -1181,17 +1218,17 @@ std::vector<torch::Tensor> hingetree_marginmap(torch::Tensor inData, torch::Tens
 
 torch::Tensor hingefern_reachability(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return torch::Tensor();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return torch::Tensor();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return torch::Tensor();
   }
 
@@ -1219,7 +1256,7 @@ torch::Tensor hingefern_reachability(torch::Tensor inData, torch::Tensor inThres
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return torch::Tensor();
   }
   
@@ -1228,17 +1265,17 @@ torch::Tensor hingefern_reachability(torch::Tensor inData, torch::Tensor inThres
 
 torch::Tensor hingefern_leafmap(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return torch::Tensor();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return torch::Tensor();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return torch::Tensor();
   }
   
@@ -1266,7 +1303,7 @@ torch::Tensor hingefern_leafmap(torch::Tensor inData, torch::Tensor inThresholds
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return torch::Tensor();
   }
   
@@ -1275,17 +1312,17 @@ torch::Tensor hingefern_leafmap(torch::Tensor inData, torch::Tensor inThresholds
 
 std::vector<torch::Tensor> hingefern_marginmap(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return std::vector<torch::Tensor>();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -1313,7 +1350,7 @@ std::vector<torch::Tensor> hingefern_marginmap(torch::Tensor inData, torch::Tens
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -1328,7 +1365,7 @@ torch::Tensor hingetree_speedtest(torch::Tensor inData, bool bDeterministic) {
   typedef bleak::HingeTreeCommon<float> TreeTraitsType; // Type doesn't matter... just used to deduce dimensions of tensors
 
   if (inData.dim() < 2) {
-    std::cerr << "Error: inData tensor expected to have at least 2 dimensions (i.e. [batch_size, num_channels, ...])." << std::endl;
+    InvalidArgumentStream("Error: inData tensor expected to have at least 2 dimensions (i.e. [batch_size, num_channels, ...]).").raise();
     return torch::Tensor();
   }
 
@@ -1407,7 +1444,7 @@ torch::Tensor hingefern_speedtest(torch::Tensor inData, bool bDeterministic) {
   typedef bleak::HingeFernCommon<float> TreeTraitsType; // Type doesn't matter... just used to deduce dimensions of tensors
 
   if (inData.dim() < 2) {
-    std::cerr << "Error: inData tensor expected to have at least 2 dimensions (i.e. [batch_size, num_channels, ...])." << std::endl;
+    InvalidArgumentStream("Error: inData tensor expected to have at least 2 dimensions (i.e. [batch_size, num_channels, ...]).").raise();
     return torch::Tensor();
   }
 
@@ -1481,17 +1518,17 @@ torch::Tensor hingefern_speedtest(torch::Tensor inData, bool bDeterministic) {
 
 bool hingetree_init_medians(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return false;
   }
   
   if (inData.device() != torch::kCPU || inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device()) {
-    std::cerr << "Error: All tensors are expected to be on the CPU." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the CPU.").raise();
     return false;
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return false;
   }
   
@@ -1535,7 +1572,7 @@ bool hingetree_init_medians(torch::Tensor inData, torch::Tensor inThresholds, to
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return false;
   }
   
@@ -1544,17 +1581,17 @@ bool hingetree_init_medians(torch::Tensor inData, torch::Tensor inThresholds, to
 
 bool hingefern_init_medians(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return false;
   }
   
   if (inData.device() != torch::kCPU || inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device()) {
-    std::cerr << "Error: All tensors are expected to be on the CPU." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the CPU.").raise();
     return false;
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return false;
   }
   
@@ -1598,7 +1635,7 @@ bool hingefern_init_medians(torch::Tensor inData, torch::Tensor inThresholds, to
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return false;
   }
   
@@ -1607,22 +1644,22 @@ bool hingefern_init_medians(torch::Tensor inData, torch::Tensor inThresholds, to
 
 bool hingetree_init_greedy(torch::Tensor inData, torch::Tensor inLabels, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return false;
   }
 
   if (inLabels.scalar_type() != torch::kInt64 && inLabels.dtype() != inData.dtype()) { // NOTE: The latter check is for regression
-    std::cerr << "Error: inLabels expected to be of type torch.int64 (classification) or share the same torch real number data type (regression)." << std::endl;
+    InvalidArgumentStream("Error: inLabels expected to be of type torch.int64 (classification) or share the same torch real number data type (regression).").raise();
     return false;
   }
   
   if (inData.device() != torch::kCPU || inData.device() != inLabels.device() || inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device()) {
-    std::cerr << "Error: All tensors are expected to be on the CPU." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the CPU.").raise();
     return false;
   }
 
   if (!inData.is_contiguous() || !inLabels.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return false;
   }
   
@@ -1676,7 +1713,7 @@ bool hingetree_init_greedy(torch::Tensor inData, torch::Tensor inLabels, torch::
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return false;
   }
   
@@ -1699,17 +1736,17 @@ std::vector<torch::Tensor> hingetree_conv_gpu_backward(torch::Tensor, bool, torc
 template<unsigned int Dimension>
 torch::Tensor hingetree_conv_forward(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights, IntArrayRef kernelSize, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return torch::Tensor();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return torch::Tensor();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return torch::Tensor();
   }
   
@@ -1737,7 +1774,7 @@ torch::Tensor hingetree_conv_forward(torch::Tensor inData, torch::Tensor inThres
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return torch::Tensor();
   }
   
@@ -1747,17 +1784,17 @@ torch::Tensor hingetree_conv_forward(torch::Tensor inData, torch::Tensor inThres
 template<unsigned int Dimension>
 std::vector<torch::Tensor> hingetree_conv_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad, IntArrayRef kernelSize, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype() || inData.dtype() != outDataGrad.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights, outDataGrad are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return std::vector<torch::Tensor>();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device() || inData.device() != outDataGrad.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous() || !outDataGrad.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -1785,7 +1822,7 @@ std::vector<torch::Tensor> hingetree_conv_backward(torch::Tensor inData, bool bI
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -1795,17 +1832,17 @@ std::vector<torch::Tensor> hingetree_conv_backward(torch::Tensor inData, bool bI
 template<unsigned int Dimension>
 torch::Tensor hingefern_conv_forward(torch::Tensor inData, torch::Tensor inThresholds, torch::Tensor inOrdinals, torch::Tensor inWeights, IntArrayRef kernelSize, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return torch::Tensor();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return torch::Tensor();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return torch::Tensor();
   }
   
@@ -1833,7 +1870,7 @@ torch::Tensor hingefern_conv_forward(torch::Tensor inData, torch::Tensor inThres
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return torch::Tensor();
   }
   
@@ -1843,17 +1880,17 @@ torch::Tensor hingefern_conv_forward(torch::Tensor inData, torch::Tensor inThres
 template<unsigned int Dimension>
 std::vector<torch::Tensor> hingefern_conv_backward(torch::Tensor inData, bool bInDataGrad, torch::Tensor inThresholds, bool bInThresholdsGrad, torch::Tensor inOrdinals, bool bInOrdinalsGrad, torch::Tensor inWeights, bool bInWeightsGrad, torch::Tensor outDataGrad, IntArrayRef kernelSize, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation) {
   if (inData.dtype() != inThresholds.dtype() || torch::kInt64 != inOrdinals.scalar_type() || inData.dtype() != inWeights.dtype() || inData.dtype() != outDataGrad.dtype()) {
-    std::cerr << "Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64." << std::endl;
+    InvalidArgumentStream("Error: inData, inThresholds, inWeights are expected to share the same torch real number data type. inOrdinals is expected to be type torch.int64.").raise();
     return std::vector<torch::Tensor>();
   }
   
   if (inData.device() != inThresholds.device() || inData.device() != inOrdinals.device() || inData.device() != inWeights.device() || inData.device() != outDataGrad.device()) {
-    std::cerr << "Error: All tensors are expected to be on the same device." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be on the same device.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (!inData.is_contiguous() || !inThresholds.is_contiguous() || !inOrdinals.is_contiguous() || !inWeights.is_contiguous() || !outDataGrad.is_contiguous()) {
-    std::cerr << "Error: All tensors are expected to be contiguous." << std::endl;
+    InvalidArgumentStream("Error: All tensors are expected to be contiguous.").raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -1881,7 +1918,7 @@ std::vector<torch::Tensor> hingefern_conv_backward(torch::Tensor inData, bool bI
     }
     break;
   default:
-    std::cerr << "Error: Unsupported data type. Only torch.float32 and torch.float64 are supported." << std::endl;
+    InvalidArgumentStream("Error: Unsupported data type. Only torch.float32 and torch.float64 are supported.").raise();
     return std::vector<torch::Tensor>();
   }
   

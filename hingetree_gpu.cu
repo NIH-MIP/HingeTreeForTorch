@@ -24,6 +24,8 @@
 #include "torch/extension.h"
 #include "HingeTreeCommon.cuh"
 
+#include "hingetree_error.h"
+
 #include <cuda.h>
 
 // From: https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html
@@ -416,12 +418,12 @@ torch::Tensor hingetree_gpu_forward(torch::Tensor inData, torch::Tensor inThresh
   typedef bleak::HingeTreeCommonGPU<TreeTraitsType> TreeTraitsTypeGPU;
 
   if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
-    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
+    InvalidArgumentStream("Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions.").raise();
     return torch::Tensor();
   }
 
   if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
-    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
+    InvalidArgumentStream("Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0].").raise();
     return torch::Tensor();
   }
   
@@ -430,7 +432,9 @@ torch::Tensor hingetree_gpu_forward(torch::Tensor inData, torch::Tensor inThresh
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
   if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
-    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
+    RunTimeErrorStream ss;
+    ss << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ").";
+    ss.raise();
     return torch::Tensor();
   }
 
@@ -439,7 +443,7 @@ torch::Tensor hingetree_gpu_forward(torch::Tensor inData, torch::Tensor inThresh
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
   if (inOrdinals.min().to(torch::kCPU).item<int64_t>() < 0 || inOrdinals.max().to(torch::kCPU).item<int64_t>() >= i64NumChannels) {
-    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
+    RunTimeErrorStream("Error: An ordinal value is either negative or larger than or equal to the number of channels.").raise();
     return torch::Tensor();
   }
  
@@ -498,17 +502,17 @@ std::vector<torch::Tensor> hingetree_gpu_backward_deterministic(torch::Tensor in
   typedef bleak::HingeTreeCommonGPU<TreeTraitsType> TreeTraitsTypeGPU;
 
   if (bInOrdinalsGrad) { // Not differentiable, ever!
-    std::cerr << "Error: Gradient on inOrdinals is requested, but inOrdinals never has a gradient." << std::endl;
+    RunTimeErrorStream("Error: Gradient on inOrdinals is requested, but inOrdinals never has a gradient.").raise();
     return std::vector<torch::Tensor>();
   }
   
   if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
-    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
+    InvalidArgumentStream("Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
-    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
+    InvalidArgumentStream("Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0].").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -517,7 +521,9 @@ std::vector<torch::Tensor> hingetree_gpu_backward_deterministic(torch::Tensor in
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
   if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
-    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
+    RunTimeErrorStream ss;
+    ss << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ").";
+    ss.raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -526,7 +532,7 @@ std::vector<torch::Tensor> hingetree_gpu_backward_deterministic(torch::Tensor in
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
   if (inOrdinals.min().to(torch::kCPU).item<int64_t>() < 0 || inOrdinals.max().to(torch::kCPU).item<int64_t>() >= i64NumChannels) {
-    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
+    RunTimeErrorStream("Error: An ordinal value is either negative or larger than or equal to the number of channels.").raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -554,7 +560,9 @@ std::vector<torch::Tensor> hingetree_gpu_backward_deterministic(torch::Tensor in
 
   // Sanity check on outDataGrad
   if (outDataGrad.sizes() != IntArrayRef(vSizes.data(), vSizes.size())) {
-    std::cerr << "Error: outDataGrad.shape does not match the expected shape (" << outDataGrad.sizes() << " != " << IntArrayRef(vSizes.data(), vSizes.size()) << ")." << std::endl;
+    InvalidArgumentStream ss;
+    ss << "Error: outDataGrad.shape does not match the expected shape (" << outDataGrad.sizes() << " != " << IntArrayRef(vSizes.data(), vSizes.size()) << ").";
+    ss.raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -613,17 +621,17 @@ std::vector<torch::Tensor> hingetree_gpu_backward(torch::Tensor inData, bool bIn
   typedef bleak::HingeTreeCommonGPU<TreeTraitsType> TreeTraitsTypeGPU;
 
   if (bInOrdinalsGrad) { // Not differentiable, ever!
-    std::cerr << "Error: Gradient on inOrdinals is requested, but inOrdinals never has a gradient." << std::endl;
+    RunTimeErrorStream("Error: Gradient on inOrdinals is requested, but inOrdinals never has a gradient.").raise();
     return std::vector<torch::Tensor>();
   }
   
   if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
-    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
+    InvalidArgumentStream("Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
-    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
+    InvalidArgumentStream("Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0].").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -632,7 +640,9 @@ std::vector<torch::Tensor> hingetree_gpu_backward(torch::Tensor inData, bool bIn
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
   if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
-    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
+    RunTimeErrorStream ss;
+    ss << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ").";
+    ss.raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -641,7 +651,7 @@ std::vector<torch::Tensor> hingetree_gpu_backward(torch::Tensor inData, bool bIn
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
   if (inOrdinals.min().to(torch::kCPU).item<int64_t>() < 0 || inOrdinals.max().to(torch::kCPU).item<int64_t>() >= i64NumChannels) {
-    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
+    RunTimeErrorStream("Error: An ordinal value is either negative or larger than or equal to the number of channels.").raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -669,7 +679,9 @@ std::vector<torch::Tensor> hingetree_gpu_backward(torch::Tensor inData, bool bIn
 
   // Sanity check on outDataGrad
   if (outDataGrad.sizes() != IntArrayRef(vSizes.data(), vSizes.size())) {
-    std::cerr << "Error: outDataGrad.shape does not match the expected shape (" << outDataGrad.sizes() << " != " << IntArrayRef(vSizes.data(), vSizes.size()) << ")." << std::endl;
+    InvalidArgumentStream ss;
+    ss << "Error: outDataGrad.shape does not match the expected shape (" << outDataGrad.sizes() << " != " << IntArrayRef(vSizes.data(), vSizes.size()) << ").";
+    ss.raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -722,12 +734,12 @@ torch::Tensor hingetree_gpu_reachability(torch::Tensor inData, torch::Tensor inT
   typedef bleak::HingeTreeCommonGPU<TreeTraitsType> TreeTraitsTypeGPU;
 
   if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
-    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
+    InvalidArgumentStream("Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions.").raise();
     return torch::Tensor();
   }
 
   if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
-    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
+    InvalidArgumentStream("Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0].").raise();
     return torch::Tensor();
   }
   
@@ -736,7 +748,9 @@ torch::Tensor hingetree_gpu_reachability(torch::Tensor inData, torch::Tensor inT
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
   if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
-    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
+    RunTimeErrorStream ss;
+    ss << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ").";
+    ss.raise();
     return torch::Tensor();
   }
 
@@ -745,7 +759,7 @@ torch::Tensor hingetree_gpu_reachability(torch::Tensor inData, torch::Tensor inT
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
   if (inOrdinals.min().to(torch::kCPU).item<int64_t>() < 0 || inOrdinals.max().to(torch::kCPU).item<int64_t>() >= i64NumChannels) {
-    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
+    RunTimeErrorStream("Error: An ordinal value is either negative or larger than or equal to the number of channels.").raise();
     return torch::Tensor();
   }
  
@@ -779,12 +793,12 @@ torch::Tensor hingetree_gpu_leafmap(torch::Tensor inData, torch::Tensor inThresh
   typedef bleak::HingeTreeCommonGPU<TreeTraitsType> TreeTraitsTypeGPU;
 
   if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
-    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
+    InvalidArgumentStream("Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions.").raise();
     return torch::Tensor();
   }
 
   if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
-    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
+    InvalidArgumentStream("Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0].").raise();
     return torch::Tensor();
   }
   
@@ -793,7 +807,9 @@ torch::Tensor hingetree_gpu_leafmap(torch::Tensor inData, torch::Tensor inThresh
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
   if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
-    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
+    RunTimeErrorStream ss;
+    ss << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ").";
+    ss.raise();
     return torch::Tensor();
   }
 
@@ -802,7 +818,7 @@ torch::Tensor hingetree_gpu_leafmap(torch::Tensor inData, torch::Tensor inThresh
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
   if (inOrdinals.min().to(torch::kCPU).item<int64_t>() < 0 || inOrdinals.max().to(torch::kCPU).item<int64_t>() >= i64NumChannels) {
-    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
+    RunTimeErrorStream("Error: An ordinal value is either negative or larger than or equal to the number of channels.").raise();
     return torch::Tensor();
   }
  
@@ -848,12 +864,12 @@ std::vector<torch::Tensor> hingetree_gpu_marginmap(torch::Tensor inData, torch::
   typedef bleak::HingeTreeCommonGPU<TreeTraitsType> TreeTraitsTypeGPU;
 
   if (inData.dim() < 2 || inThresholds.dim() != 2 || inOrdinals.dim() != 2 || inWeights.dim() < 2) {
-    std::cerr << "Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions." << std::endl;
+    InvalidArgumentStream("Error: inData, inWeights must have at least 2 dimensions. inThresholds and inOrdinals must have 2 dimensions.").raise();
     return std::vector<torch::Tensor>();
   }
 
   if (inThresholds.sizes() != inOrdinals.sizes() || inWeights.sizes()[0] != inThresholds.sizes()[0]) {
-    std::cerr << "Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0]." << std::endl;
+    InvalidArgumentStream("Error: inThresholds and inOrdinals must be the same shape. inWeights.shape[0] must be the same as inThresholds.shape[0].").raise();
     return std::vector<torch::Tensor>();
   }
   
@@ -862,7 +878,9 @@ std::vector<torch::Tensor> hingetree_gpu_marginmap(torch::Tensor inData, torch::
   const int64_t i64TreeDepth = TreeTraitsType::ComputeDepth(i64NumLeavesPerTree);
   
   if (i64TreeDepth > TreeTraitsType::GetMaxDepth() || inThresholds.sizes()[1] != TreeTraitsType::GetThresholdCount(i64TreeDepth)) {
-    std::cerr << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ")." << std::endl;
+    RunTimeErrorStream ss;
+    ss << "Error: The tree depth exceeds compile-time constraints or the number of thresholds is incorrect for the tree depth (tree depth = " << i64TreeDepth << ").";
+    ss.raise();
     return std::vector<torch::Tensor>();
   }
 
@@ -871,7 +889,7 @@ std::vector<torch::Tensor> hingetree_gpu_marginmap(torch::Tensor inData, torch::
   const int64_t i64NumDecisionsPerTree = inThresholds.sizes()[1];
 
   if (inOrdinals.min().to(torch::kCPU).item<int64_t>() < 0 || inOrdinals.max().to(torch::kCPU).item<int64_t>() >= i64NumChannels) {
-    std::cerr << "Error: An ordinal value is either negative or larger than or equal to the number of channels." << std::endl;
+    RunTimeErrorStream("Error: An ordinal value is either negative or larger than or equal to the number of channels.").raise();
     return std::vector<torch::Tensor>(); 
   }
  
