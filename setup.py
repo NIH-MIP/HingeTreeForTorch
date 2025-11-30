@@ -16,6 +16,7 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # 
 
+import os
 from setuptools import setup, Extension
 import torch.cuda
 from torch.utils import cpp_extension
@@ -24,7 +25,46 @@ sourceFiles = [ 'hingetree.cpp', 'hingetree_sparse.cpp', 'hingetrie.cpp', 'Image
 extraCflags = [ '-O2' ]
 extraCudaFlags = [ '-O2' ]
 
-if torch.cuda.is_available():
+# Check if PyTorch is compiled against CUDA and build for all of PyTorch's supported architectures.
+# Override this behavior by defining TORCH_CUDA_ARCH_LIST yourself
+def should_build_cuda():
+    try:
+        # Is this built with CUDA?
+        arch_list = torch.cuda.get_arch_list()
+    except AttributeError: 
+        # Not sure this ever happens. Just in case!
+        return False
+
+    if len(arch_list) == 0:
+        return False
+
+    if "TORCH_CUDA_ARCH_LIST" in os.environ:
+        return True
+    
+    # compute capability version --> sm, compute
+    arch_map = dict()
+    
+    # Translate sm_## and compute_## to TORCH_CUDA_ARCH_LIST ... so that PyTorch can translate them back!
+    for arch in arch_list:
+        tokens = arch.split("_")
+        if len(tokens) == 2:
+            compute_type, compute_cap = tokens
+
+            # NOTE: compute_cap may end with 'a'. See _get_cuda_arch_flags in torch.utils.cpp_extension
+            if compute_cap.endswith("a"):
+                compute_cap = compute_cap[:-2] + "." + compute_cap[-2:]
+            else:
+                compute_cap = compute_cap[:-1] + "." + compute_cap[-1:]
+
+            arch_map.setdefault(compute_cap, set()).add(compute_type)
+
+    env_value = " ".join([ key + "+PTX" if "compute" in values else key for key, values in arch_map.items() ])
+    os.environ["TORCH_CUDA_ARCH_LIST"] = env_value
+    print(f"TORCH_CUDA_ARCH_LIST = {env_value}")
+
+    return True
+
+if should_build_cuda():
   sourceFiles.append('hingetree_gpu.cu')
   sourceFiles.append('hingetree_sparse_gpu.cu')
   sourceFiles.append('ImageToMatrix_gpu.cu')
@@ -36,7 +76,7 @@ if torch.cuda.is_available():
   extraCudaFlags.append('-DWITH_CUDA=1')
 
   setup(name='hingetree_cpp', 
-      version='1.1.2',
+      version='1.1.3',
       description='Port of random hinge forest for PyTorch.',
       author='Nathan Lay',
       author_email='enslay@gmail.com',
@@ -46,7 +86,7 @@ if torch.cuda.is_available():
       cmdclass={'build_ext': cpp_extension.BuildExtension})
 else:
   setup(name='hingetree_cpp', 
-      version='1.1.2',
+      version='1.1.3',
       description='Port of random hinge forest for PyTorch.',
       author='Nathan Lay',
       author_email='enslay@gmail.com',
@@ -54,3 +94,4 @@ else:
       packages=["HingeTree", "RandomHingeForest"],
       ext_modules=[cpp_extension.CppExtension(name = 'hingetree_cpp', sources = sourceFiles, extra_compile_args = {'cxx': extraCflags, 'nvcc': extraCudaFlags})],
       cmdclass={'build_ext': cpp_extension.BuildExtension})
+
