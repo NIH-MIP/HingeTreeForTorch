@@ -23,38 +23,15 @@
 
 typedef c10::IntArrayRef IntArrayRef;
 
-// From: https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html
-// And from: https://stackoverflow.com/questions/39274472/error-function-atomicadddouble-double-has-already-been-defined
-#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
-
-//#if __CUDA_ARCH__ < 600
-#else
-static inline __device__ double atomicAdd(double* address, double val)
-{
-    unsigned long long int* address_as_ull =
-                              (unsigned long long int*)address;
-    unsigned long long int old = *address_as_ull, assumed;
-
-    do {
-        assumed = old;
-        old = atomicCAS(address_as_ull, assumed,
-                        __double_as_longlong(val +
-                               __longlong_as_double(assumed)));
-
-    // Note: uses integer comparison to avoid hang in case of NaN (since NaN != NaN)
-    } while (assumed != old);
-
-    return __longlong_as_double(old);
-}
-#endif
-
 namespace {
 
 // Make struct that can be conveniently passed to kernels by value
 template<unsigned int Dimension>
 struct Size {
-  constexpr static size_t size = Dimension;
+  //constexpr static size_t size = Dimension;
   int64_t data[Dimension];
+
+  __host__ explicit operator IntArrayRef() const { return IntArrayRef(data, Dimension); }
 };
 
 __device__ void contract2d_coords(int64_t &xo, int64_t &yo, int64_t &xw, int64_t &yw, int64_t k, const int64_t sizes[4]) {
@@ -232,7 +209,7 @@ torch::Tensor contract2d_gpu(torch::Tensor inData, const int64_t a_i64Window[2],
 
   auto clOptions = torch::TensorOptions().dtype(inData.dtype()).device(inData.device());
 
-  torch::Tensor outData = torch::zeros(IntArrayRef(stOutSize.data, stOutSize.size), clOptions);
+  torch::Tensor outData = torch::zeros((IntArrayRef)stOutSize, clOptions);
 
   const dim3 threadsPerBlock(16,8,8);
   const dim3 numBlocks((i64Size + threadsPerBlock.x-1) / threadsPerBlock.x, (i64BatchSize + threadsPerBlock.y-1) / threadsPerBlock.y, (i64NumChannels + threadsPerBlock.z-1) / threadsPerBlock.z);
@@ -284,7 +261,7 @@ torch::Tensor contract3d_gpu(torch::Tensor inData, const int64_t a_i64Window[3],
 
   auto clOptions = torch::TensorOptions().dtype(inData.dtype()).device(inData.device());
 
-  torch::Tensor outData = torch::zeros(IntArrayRef(stOutSize.data, stOutSize.size), clOptions);
+  torch::Tensor outData = torch::zeros((IntArrayRef)stOutSize, clOptions);
 
   const dim3 threadsPerBlock(16,8,8);
   const dim3 numBlocks((i64Size + threadsPerBlock.x-1) / threadsPerBlock.x, (i64BatchSize + threadsPerBlock.y-1) / threadsPerBlock.y, (i64NumChannels + threadsPerBlock.z-1) / threadsPerBlock.z);
@@ -332,7 +309,7 @@ torch::Tensor expand2d_gpu(torch::Tensor inData, const int64_t a_i64Padding[2]) 
 
   auto clOptions = torch::TensorOptions().dtype(inData.dtype()).device(inData.device());
 
-  torch::Tensor outData = torch::zeros(IntArrayRef(stOutSize.data, stOutSize.size), clOptions);
+  torch::Tensor outData = torch::zeros((IntArrayRef)stOutSize, clOptions);
 
   const dim3 threadsPerBlock(16,8,8);
   const dim3 numBlocks((i64Size + threadsPerBlock.x-1) / threadsPerBlock.x, (i64BatchSize + threadsPerBlock.y-1) / threadsPerBlock.y, (i64NumChannels + threadsPerBlock.z-1) / threadsPerBlock.z);
@@ -385,7 +362,7 @@ torch::Tensor expand3d_gpu(torch::Tensor inData, const int64_t a_i64Padding[2]) 
 
   auto clOptions = torch::TensorOptions().dtype(inData.dtype()).device(inData.device());
 
-  torch::Tensor outData = torch::zeros(IntArrayRef(stOutSize.data, stOutSize.size), clOptions);
+  torch::Tensor outData = torch::zeros((IntArrayRef)stOutSize, clOptions);
 
   const dim3 threadsPerBlock(16,8,8);
   const dim3 numBlocks((i64Size + threadsPerBlock.x-1) / threadsPerBlock.x, (i64BatchSize + threadsPerBlock.y-1) / threadsPerBlock.y, (i64NumChannels + threadsPerBlock.z-1) / threadsPerBlock.z);
