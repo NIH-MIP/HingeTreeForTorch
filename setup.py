@@ -18,7 +18,7 @@
 
 import os
 from setuptools import setup, Extension
-import torch.cuda
+import torch
 from torch.utils import cpp_extension
 
 sourceFiles = [ 'hingetree.cpp', 'hingetree_sparse.cpp', 'hingetrie.cpp', 'ImageToMatrix.cpp', 'hingetree_conv.cpp', 'hingetree_fused_linear.cpp', 'hingetree_fusion.cpp', 'expand.cpp', 'Timer.cpp' ]
@@ -30,9 +30,17 @@ extraCudaFlags = [ '-O2' ]
 def should_build_cuda():
     try:
         # Is this built with CUDA?
-        arch_list = torch.cuda.get_arch_list()
+        #arch_list = torch.cuda.get_arch_list()
+
+        # XXX: Bypass torch.cuda.get_arch_list() since it checks torch.cuda.is_available() which requires a GPU to be present.
+        # Why does a GPU need to be present to know about compile-time configurations?
+        arch_flags = torch._C._cuda_getArchFlags()
+
+        if arch_flags is None:
+            return False
+
+        arch_list = arch_flags.split()
     except AttributeError: 
-        # Not sure this ever happens. Just in case!
         return False
 
     if len(arch_list) == 0:
@@ -65,33 +73,33 @@ def should_build_cuda():
     return True
 
 if should_build_cuda():
-  sourceFiles.append('hingetree_gpu.cu')
-  sourceFiles.append('hingetree_sparse_gpu.cu')
-  sourceFiles.append('ImageToMatrix_gpu.cu')
-  sourceFiles.append('hingetree_conv_gpu.cu')
-  sourceFiles.append('hingetree_fused_linear_gpu.cu')
-  sourceFiles.append('hingetree_fusion_gpu.cu')
-  sourceFiles.append('expand_gpu.cu')
-  extraCflags.append('-DWITH_CUDA=1')
-  extraCudaFlags.append('-DWITH_CUDA=1')
+    sourceFiles.append('hingetree_gpu.cu')
+    sourceFiles.append('hingetree_sparse_gpu.cu')
+    sourceFiles.append('ImageToMatrix_gpu.cu')
+    sourceFiles.append('hingetree_conv_gpu.cu')
+    sourceFiles.append('hingetree_fused_linear_gpu.cu')
+    sourceFiles.append('hingetree_fusion_gpu.cu')
+    sourceFiles.append('expand_gpu.cu')
+    extraCflags.append('-DWITH_CUDA=1')
+    extraCudaFlags.append('-DWITH_CUDA=1')
 
-  setup(name='hingetree_cpp', 
-      version='1.1.3',
-      description='Port of random hinge forest for PyTorch.',
-      author='Nathan Lay',
-      author_email='enslay@gmail.com',
-      url='https://github.com/nslay/HingeTreeForTorch/',
-      packages=["HingeTree", "RandomHingeForest"],
-      ext_modules=[cpp_extension.CUDAExtension(name = 'hingetree_cpp', sources = sourceFiles, extra_compile_args = {'cxx': extraCflags, 'nvcc': extraCudaFlags})],
-      cmdclass={'build_ext': cpp_extension.BuildExtension})
+    setup(name='hingetree_cpp', 
+        version='1.1.3',
+        description='Port of random hinge forest for PyTorch.',
+        author='Nathan Lay',
+        author_email='enslay@gmail.com',
+        url='https://github.com/nslay/HingeTreeForTorch/',
+        packages=["HingeTree", "RandomHingeForest"],
+        ext_modules=[cpp_extension.CUDAExtension(name = 'hingetree_cpp', sources = sourceFiles, extra_compile_args = {'cxx': extraCflags, 'nvcc': extraCudaFlags})],
+        cmdclass={'build_ext': cpp_extension.BuildExtension})
 else:
-  setup(name='hingetree_cpp', 
-      version='1.1.3',
-      description='Port of random hinge forest for PyTorch.',
-      author='Nathan Lay',
-      author_email='enslay@gmail.com',
-      url='https://github.com/nslay/HingeTreeForTorch/',
-      packages=["HingeTree", "RandomHingeForest"],
-      ext_modules=[cpp_extension.CppExtension(name = 'hingetree_cpp', sources = sourceFiles, extra_compile_args = {'cxx': extraCflags, 'nvcc': extraCudaFlags})],
-      cmdclass={'build_ext': cpp_extension.BuildExtension})
+    setup(name='hingetree_cpp', 
+        version='1.1.3',
+        description='Port of random hinge forest for PyTorch.',
+        author='Nathan Lay',
+        author_email='enslay@gmail.com',
+        url='https://github.com/nslay/HingeTreeForTorch/',
+        packages=["HingeTree", "RandomHingeForest"],
+        ext_modules=[cpp_extension.CppExtension(name = 'hingetree_cpp', sources = sourceFiles, extra_compile_args = {'cxx': extraCflags, 'nvcc': extraCudaFlags})],
+        cmdclass={'build_ext': cpp_extension.BuildExtension})
 
