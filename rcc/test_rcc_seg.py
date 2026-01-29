@@ -23,9 +23,11 @@ from rcc_common import LoadImage, SaveImage, LoadMask, CleanUpMask
 def main():
     #dataRoot="/data/AIR/RCC/Nifti"
     #dataRoot="/data/AIR/RCC/NiftiNew"
-    dataRoot="/data/AIR/RCC/NiftiNew"
+    #dataRoot="/data/AIR/RCC/NiftiNew"
+    dataRoot="/scratch/cluster_scratch/layns/RCC/NiftiNew"
     #outputRoot="ProbMaps_UpdatedTrain_Requested4"
-    outputRoot="/data/AIR/layns/ProbMaps_unweighted_hingeforest_depth7_vggblock3_randomSplit1_epoch_549"
+    #outputRoot="/data/AIR/layns/ProbMaps_unweighted_hingeforest_depth7_vggblock3_randomSplit1_epoch_549"
+    outputRoot="/scratch/cluster_scratch/layns/RCC/Output"
     #outputRoot="ProbMaps_FourChannel_MoreTraining_Training"
     #testList=os.path.join(dataRoot, "valList.txt")
     #testList=os.path.join(dataRoot, "test_isbi2022_randomSplit2.txt")
@@ -58,7 +60,7 @@ def main():
     #cad.LoadModel("/data/AIR/RCC/ISBI/snapshotsHinge_VGGBlock3_8x8Agg_2/epoch_73.pt")
     #cad.LoadModel("/data/AIR/RCC/ISBI/snapshots_weighted_easyhard_deterministic_hingeforest_vggblock3_randomSplit4/epoch_749.pt")
     #cad.LoadModel("/data/AIR/RCC/ISBI/snapshotsHinge_VGGBlock_8x8_3/epoch_136.pt")
-    cad.LoadModel("/data/AIR/RCC/ISBI/snapshots_unweighted_easyhard_deterministic_hingeforest_depth7_vggblock3_randomSplit1/epoch_549.pt")
+    cad.LoadModel("/scratch/cluster_scratch/layns/RCC/Models/rccseg_unweighted_easyhard_deterministic_depth7_hingeforest_vggblock3_randomSplit1/model.pt")
     
     if not os.path.exists(outputRoot):
         os.makedirs(outputRoot)

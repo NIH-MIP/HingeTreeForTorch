@@ -36,6 +36,12 @@ def seed(seedStr):
     return theSeed
 
 def find_last_snapshot(snapshotDir):
+    startSnapshotFile=os.path.join(snapshotDir, "model.pt")
+
+    # NOTE: Epoch stored in new format parameters file
+    if os.path.exists(startSnapshotFile):
+        return startSnapshotFile, -1
+
     startEpoch=0
     startSnapshotFile=None
     for snapshotFile in glob.glob(os.path.join(snapshotDir, "epoch_*.pt")):
@@ -48,7 +54,7 @@ def find_last_snapshot(snapshotDir):
 
     return startSnapshotFile, startEpoch
 
-def main(dataRoot, trainList, snapshotDir, seedStr="rcc0", continueTraining=False):
+def main(dataRoot, trainList, snapshotDir, seedStr="rcc0", continueTraining=False, use_expand=False, use_monai=False):
     #dataRoot="/data/AIR/RCC/NiftiNew"
     #dataRoot="/data/AIR/RCC/Nifti"
     #testRoot="/data/AIR/layns/NIHAnonMeshes"
@@ -65,7 +71,7 @@ def main(dataRoot, trainList, snapshotDir, seedStr="rcc0", continueTraining=Fals
 
     #os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
-    cad = RCCSeg(numClasses=4)
+    cad = RCCSeg(numClasses=4, use_expand=use_expand)
 
     cad.SetDevice("cuda:0")
 
@@ -87,7 +93,7 @@ def main(dataRoot, trainList, snapshotDir, seedStr="rcc0", continueTraining=Fals
         else:
             print(f"Info: No snapshots found. Starting from scratch ...")
 
-    cad.Train(trainList, valPerc=0.1, snapshotRoot=snapshotDir, startEpoch=startEpoch, seed=theSeed)
+    cad.Train(trainList, valPerc=0.1, snapshotRoot=snapshotDir, startEpoch=startEpoch, seed=theSeed, use_monai=use_monai)
 
     print("Done")
 
@@ -98,7 +104,10 @@ if __name__ == "__main__":
     parser.add_argument("--snapshot-dir", dest="snapshotDir", required=True, type=str, help="Snapshot directory.")
     parser.add_argument("--seed", dest="seedStr", default="rcc", type=str, help="Seed string.")
     parser.add_argument("--continue", dest="continueTraining", default=False, action="store_true", help="Continue from last snapshot.")
+    parser.add_argument("--use-expand", dest="use_expand", default=False, action="store_true", help="Use HingeTree.expand instead of fold.")
+    parser.add_argument("--use-monai", dest="use_monai", default=False, action="store_true", help="Use MONAI training data loader.")
 
     args = parser.parse_args()
 
     main(**vars(args))
+

@@ -17,6 +17,7 @@
 # 
 
 import os
+import glob
 from RCCSeg import RCCSeg, extract_metrics, extract_counts, calculate_roc
 from rcc_common import LoadImage, SaveImage, LoadMask, CleanUpMask, ShowWarnings
 from roc import AverageROC, ComputeROC
@@ -83,7 +84,8 @@ def main():
     ShowWarnings(False)
     #dataRoot="/data/AIR/RCC/Nifti.bak6"
     #dataRoot="/data/AIR/RCC/NiftiNew"
-    dataRoot="/data/AIR/RCC/NiftiNew"
+    #dataRoot="/data/AIR/RCC/NiftiNew"
+    dataRoot="/scratch/cluster_scratch/layns/RCC/NiftiNew"
     #dataRoot="/data/AIR/RCC/Temp2/Nifti"
     #testList=os.path.join(dataRoot, "valList.txt")
     #testList=os.path.join(dataRoot, "trainList.txt")
@@ -91,7 +93,7 @@ def main():
 
     set_deterministic(True)
 
-    cad = RCCSeg(numClasses=4)
+    cad = RCCSeg(numClasses=4, use_expand=False)
     cad.SetDevice("cuda:0")
     cad.SetDataRoot(dataRoot)
 
@@ -107,20 +109,34 @@ def main():
         #modelFolder=f"/data/AIR/RCC/ISBI/snapshots_fold1_randomSplit{f+1}"
         #modelFolder=f"/data/AIR/RCC/ISBI/snapshots_weighted_easyhard_deterministic_hingeforest_randomSplit{f+1}"
         #modelFolder=f"/data/AIR/RCC/ISBI/snapshots_weighted_easyhard_deterministic_hingeforest_vggblock3_randomSplit{f+1}"
-        modelFolder=f"/data/AIR/RCC/ISBI/snapshots_unweighted_easyhard_deterministic_hingeforest_depth7_vggblock3_randomSplit{f+1}"
+        #modelFolder=f"/data/AIR/RCC/ISBI/snapshots_unweighted_easyhard_deterministic_hingeforest_depth7_vggblock3_randomSplit{f+1}"
+        #modelFolder=f"/scratch/cluster_scratch/layns/RCC/Models/rccseg_unweighted_easyhard_deterministic_depth7_hingeforest_vggblock3_randomSplit{f+1}"
+        #modelFolder=f"/scratch/cluster_scratch/layns/RCC/Models/rccseg_unweighted_easyhard_deterministic_depth7_hingeforest_vggblock3_fold_randomSplit{f+1}"
+        modelFolder=f"Models/snapshots_unweighted_easyhard_deterministic_hingeforest_depth7_vggblock3_randomSplit{f+1}"
         bestFile=os.path.join(modelFolder, "bestDice.txt")        
         testList=os.path.join(dataRoot, f"test_isbi2022_easyhard_randomSplit{f+1}.txt")
 
         bestEpoch=-1
-        with open(bestFile, mode="rt", newline="") as g:
-            line = next(iter(g))
-            bestEpoch = int(line.split(" ")[-1])
+        if os.path.exists(bestFile):
+            with open(bestFile, mode="rt", newline="") as g:
+                line = next(iter(g))
+                bestEpoch = int(line.split(" ")[-1])
 
-        #bestEpoch=299
-        bestModel=os.path.join(modelFolder, f"epoch_{bestEpoch}.pt")
+            #bestEpoch=299
+            bestModel=os.path.join(modelFolder, f"epoch_{bestEpoch}.pt")
+        else:
+            # XXX: The bestDice really should exist for this... but the model was stored on github with just one snapshot
+            try:
+                bestModel=next(iter(glob.glob(os.path.join(modelFolder, "epoch_*.pt"))))
+            except StopIteration:
+                bestModel=os.path.join(modelFolder, f"model.pt")
 
         print(f"Info: Loading '{bestModel}' ...")
         cad.LoadModel(bestModel)
+
+        if bestEpoch < 0:
+            bestEpoch = cad.epoch
+            print(f"Info: epoch = {bestEpoch}")
 
         metricsByPatient = cad.Test(testList)
         metricsBySplit[f] = metricsByPatient

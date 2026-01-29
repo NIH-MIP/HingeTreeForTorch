@@ -22,7 +22,7 @@ import torch.nn.functional as F
 from RandomHingeForest import RandomHingeForest
 
 class Net(nn.Module):
-    def __init__(self, in_channels, out_channels, numTrees = 100, depth = 7):
+    def __init__(self, in_channels, out_channels, numTrees = 100, depth = 7, use_expand=True):
         super(Net, self).__init__()
 
         self.bn11 = nn.BatchNorm2d(40, affine=False)
@@ -62,6 +62,13 @@ class Net(nn.Module):
         self.features = nn.Conv2d(40,100,1, bias=False)
   
         self.forest = RandomHingeForest(in_channels=100, out_channels=numTrees, extra_outputs=[8,8], depth=depth)
+
+        if use_expand:
+            from HingeTree import Expand
+            self.expand = Expand()
+            print("Warning: Using HingeTree.Expand which is not compatible with the original model weights.", flush=True)
+        else:
+            self.expand = None
         #self.forest = nn.ConvTranspose2d(100, 100, 8, stride=8, output_padding=0)
         #self.agg = nn.Linear(in_features=numTrees, out_features=out_channels)
         self.agg = nn.Conv2d(numTrees,out_channels,1)
@@ -99,21 +106,31 @@ class Net(nn.Module):
         x = self.forest(self.forestbn1(x))
         #x = F.normalize(x, p=2)
 
-        # x is (B, out_channels, h, w, 2, 2)
 
-        tmp = x.view([x.shape[0], x.shape[1], x.shape[2]*x.shape[3], x.shape[4]*x.shape[5]])
-        tmp = tmp.transpose(2,3)
-        tmp = tmp.transpose(1,2)
-        tmp = tmp.reshape([x.shape[0], x.shape[1]*x.shape[4]*x.shape[5], x.shape[2]*x.shape[3]])
+        if self.expand is None:
+            # Original way used for paper
 
-        x = F.fold(tmp, [x.shape[2]*x.shape[4], x.shape[3]*x.shape[5]], [x.shape[4], x.shape[5]], stride=[x.shape[4], x.shape[5]])
+            # x is (B, out_channels, h, w, 8, 8)
+            tmp = x.view([x.shape[0], x.shape[1], x.shape[2]*x.shape[3], x.shape[4]*x.shape[5]])
+            # (B, out_channels, h*w, 8*8)
+            tmp = tmp.transpose(2,3)
+            # (B, out_channels, 8*8, h*w)
+            tmp = tmp.transpose(1,2) # XXX: This makes Expand() not the same but was present in the original code
+            # (B, 8*8, out_channels, h*w)
+            tmp = tmp.reshape([x.shape[0], x.shape[1]*x.shape[4]*x.shape[5], x.shape[2]*x.shape[3]])
+            # (B, 8*8*out_channels, h*w)
 
-        """
-        tmpInput = torch.eye(x.shape[2]*x.shape[3], dtype=x.dtype, device=x.device).view([1, x.shape[2]*x.shape[3], x.shape[2], x.shape[3]])
-        tmpWeights = x.view([x.shape[0]*x.shape[1], x.shape[2]*x.shape[3], 2, 2]).transpose(0,1)
+            x = F.fold(tmp, [x.shape[2]*x.shape[4], x.shape[3]*x.shape[5]], [x.shape[4], x.shape[5]], stride=[x.shape[4], x.shape[5]])
 
-        x = F.conv_transpose2d(tmpInput, tmpWeights, stride=2).view([x.shape[0], x.shape[1], 2*x.shape[2], 2*x.shape[3]])
-        """
+            """
+            tmpInput = torch.eye(x.shape[2]*x.shape[3], dtype=x.dtype, device=x.device).view([1, x.shape[2]*x.shape[3], x.shape[2], x.shape[3]])
+            tmpWeights = x.view([x.shape[0]*x.shape[1], x.shape[2]*x.shape[3], 2, 2]).transpose(0,1)
+
+            x = F.conv_transpose2d(tmpInput, tmpWeights, stride=2).view([x.shape[0], x.shape[1], 2*x.shape[2], 2*x.shape[3]])
+            """
+        else:
+            x = self.expand(x) # XXX: Due to a transpose() discrepancy, this is not the same as the original code
+
 
         #x = x.view(list(x.shape[:2]) + list(origShape[2:]))
 
@@ -140,13 +157,25 @@ class Net(nn.Module):
         return x
 
 if __name__ == "__main__":
-    net = Net(in_channels=4, out_channels=4).cuda()
+    net = Net(in_channels=4, out_channels=4, use_expand=True).cuda()
+
     x = torch.randn([8,4,256,256]).cuda()
+
+    y_new = net(x)
+
+    #print(y_new.shape)
+
+    net.expand = None
 
     y = net(x)
 
+    #print(y.shape)
+
+    print((y - y_new).abs().max())
+    exit()
+
     print(x.shape)
     print(y.shape)
-    print(x.max())
-    print(y.max())
+    #print(x.max())
+    #print(y.max())
 

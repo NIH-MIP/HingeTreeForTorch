@@ -122,11 +122,12 @@ class ImageBatcher:
                         imageBatch = torch.from_numpy(npImageBatch).type(torch.float32)
                         maskBatch = torch.from_numpy(npMaskBatch).type(torch.long)
 
-                        h = hashlib.md5()
-                        h.update(imageBatch.numpy().tobytes())
-                        h.update(maskBatch.numpy().tobytes())
+                        #h = hashlib.md5()
+                        #h.update(imageBatch.numpy().tobytes())
+                        #h.update(maskBatch.numpy().tobytes())
                     
-                        self.q.put((imageBatch.clone(), maskBatch.clone(), h.hexdigest()))
+                        #self.q.put((imageBatch.clone(), maskBatch.clone(), h.hexdigest()))
+                        self.q.put((imageBatch.clone(), maskBatch.clone()))
 
             self.q.put(EndEpochToken()) 
 

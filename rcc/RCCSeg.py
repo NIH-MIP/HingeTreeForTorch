@@ -25,7 +25,6 @@ import torch.optim as optim
 import torch.nn.functional as F
 import torchvision.ops as ops
 import SimpleITK as sitk
-from ImageBatcher import ImageBatcher
 from roc import ComputeROC
 from rcc_common import LoadImage, LoadMask, LoadMaskNoRelabel, SaveImage, ComputeLabelWeights, ShowWarnings, ExtractTumorDetections, CleanUpMask
 #from UNet import UNet
@@ -80,16 +79,19 @@ def calculate_roc(metricsByPatient):
     return roc
 
 class RCCSeg:
-    def __init__(self, numClasses=4):
+    def __init__(self, numClasses=4,use_expand=True):
         self.device = "cpu"
         self.multipleOf = [8, 8]
         self.numClasses=numClasses
         #self.net = UNet(in_channels=4,out_channels=self.numClasses)
-        self.net = Net(in_channels=4,out_channels=self.numClasses)
+        self.net = Net(in_channels=4,out_channels=self.numClasses, use_expand = use_expand)
         self.dataRoot = None
-        self.saveSteps = 10
-        self.valSteps = 5*self.saveSteps
+        #self.saveSteps = 1
+        #self.valSteps = 5*self.saveSteps
+        self.valSteps = 1
         self.dilateUnknown = False
+        self.use_expand = use_expand
+        self.epoch = 0
 
     def _get_roi_1d(self, size, multipleOf):
         remainder = (size % multipleOf)
@@ -128,10 +130,19 @@ class RCCSeg:
         return self.dataRoot
 
     def SaveModel(self, fileName):
-        torch.save(self.net.state_dict(), fileName)
+        torch.save({"epoch": self.epoch, "params": self.net.state_dict()}, fileName)
 
     def LoadModel(self, fileName):
-        self.net.load_state_dict(torch.load(fileName, map_location=self.GetDevice()))
+        params = torch.load(fileName, map_location=self.GetDevice(), weights_only=True)
+
+        if "epoch" in params:
+            self.epoch = params["epoch"]
+            self.net.load_state_dict(params["params"])
+        else:
+            # NOTE: Only style model
+            self.use_expand = False
+            self.net.load_state_dict(params)
+            self.net.expand = None
 
     def LeafMaps(self,patientId):
         #volumePath = os.path.join(self.dataRoot, "Images", patientId, "image.nii.gz")
@@ -299,7 +310,7 @@ class RCCSeg:
 
         return metricsByPatient
 
-    def Train(self,trainList,valPerc=0.0,snapshotRoot="snapshots", startEpoch=0, seed=6112):
+    def Train(self,trainList,valPerc=0.0,snapshotRoot="snapshots", startEpoch=0, seed=6112, use_monai=False):
         batchSize=16
         # Info: label counts = [30077046   319095    50418    80929]
         # Info: label counts = [150327549   1658189    308158    409592]
@@ -314,9 +325,12 @@ class RCCSeg:
         numEpochs=1000
         #numEpochs=51
 
+        if startEpoch < 0:
+            startEpoch=self.epoch
+
         print(f"Info: batchSize = {batchSize}")
         print(f"Info: numClasses = {self.numClasses}")
-        print(f"Info: saveSteps = {self.saveSteps}")
+        #print(f"Info: saveSteps = {self.saveSteps}")
         print(f"Info: valSteps = {self.valSteps}")
         print(f"Info: labelWeights = {labelWeights}")
         print(f"Info: dilateUnknown = {self.dilateUnknown}")
@@ -337,16 +351,26 @@ class RCCSeg:
         else:
             trainList = patientIds
 
+        if use_monai:
+            print("Info: Using MONAI ImageBatcher", flush=True)
+            from ImageBatcher_monai import ImageBatcher
+        else:
+            from ImageBatcher import ImageBatcher
+
         imageBatcher = ImageBatcher(self.GetDataRoot(), trainList, batchSize, numClasses=self.numClasses, dilateUnknown=self.dilateUnknown, seed=seed)
 
         criterion = nn.CrossEntropyLoss(ignore_index=-1,weight = labelWeights).to(self.GetDevice())
         #criterion2 = DiceLoss(ignore_index=0, p=1, smooth=1e-3).to(self.GetDevice())
 
-        #criterion = ops.sigmoid_focal_loss
-        optimizer = optim.Adam(self.net.parameters(), lr = 1e-3)
+        learningRate = 1e-3
 
-        trainLosses = np.ones([numEpochs])*1000.0
-        valAUCs = np.zeros([numEpochs])
+        #criterion = ops.sigmoid_focal_loss
+        optimizer = optim.Adam(self.net.parameters(), lr = learningRate)
+
+        bestDsc = None
+
+        #trainLosses = np.ones([numEpochs])*1000.0
+        #valAUCs = np.zeros([numEpochs])
 
         if not os.path.exists(snapshotRoot):
             os.makedirs(snapshotRoot)
@@ -355,6 +379,8 @@ class RCCSeg:
             imageBatcher.start()
             for e in range(startEpoch,numEpochs):
             #for e in range(148, numEpochs):
+
+                self.epoch = e
 
                 runningLoss = 0.0
                 count = 0
@@ -386,29 +412,33 @@ class RCCSeg:
                     runningLoss += loss
                     count += 1
 
-                    print(f"loss = {loss.item()}", flush=True)
+                    #print(f"loss = {loss.item()}", flush=True)
 
                 if count > 0:
                     runningLoss /= count
 
-                snapshotFile=os.path.join(snapshotRoot, f"epoch_{e}.pt")
-                rocFile=os.path.join(snapshotRoot, f"validation_roc_{e}.txt")
-                diceFile=os.path.join(snapshotRoot, f"dice_stats_{e}.txt")
+                #snapshotFile=os.path.join(snapshotRoot, f"epoch_{e}.pt")
+                snapshotFile=os.path.join(snapshotRoot, "model.pt")
+                #rocFile=os.path.join(snapshotRoot, f"validation_roc_{e}.txt")
+                rocFile=os.path.join(snapshotRoot, "validation_roc.txt")
+                #diceFile=os.path.join(snapshotRoot, f"dice_stats_{e}.txt")
+                diceFile=os.path.join(snapshotRoot, "dice_stats.txt")
 
-                if ((e+1) % self.saveSteps) == 0:
-                    print(f"Info: Saving {snapshotFile} ...", flush=True)
-                    self.SaveModel(snapshotFile)
-                else:
-                    print(f"Info: Skipping saving {snapshotFile}.", flush=True)
+                # This is the original behavior... this eats up too much disk space though
+                #if ((e+1) % self.saveSteps) == 0:
+                #    print(f"Info: Saving {snapshotFile} ...", flush=True)
+                #    self.SaveModel(snapshotFile)
+                #else:
+                #    print(f"Info: Skipping saving {snapshotFile}.", flush=True)
 
                 # For debugging
                 #self.LoadModel(snapshotFile)
 
-                trainLosses[e] = runningLoss
+                #trainLosses[e] = runningLoss
 
-                if valList is None:
-                    print(f"Info: Epoch = {e}, training loss = {runningLoss}", flush=True)
-                elif self.valSteps > 0 and ((e+1) % self.valSteps) == 0: 
+                print(f"Info: Epoch = {e}, training loss = {runningLoss}", flush=True)
+
+                if self.valSteps > 0 and ((e+1) % self.valSteps) == 0: 
                     metricsByPatient = self.Test(valList)
 
                     diceStats = extract_metrics(metricsByPatient, 'dsc')
@@ -417,31 +447,38 @@ class RCCSeg:
                     totalCounts, missedCounts, extraCounts = extract_counts(metricsByPatient)
                     roc = calculate_roc(metricsByPatient)
 
-                    print(f"Info: Epoch = {e}, training loss = {currentLoss}, mean loss = {meanLoss}, learning rate = {learningRate}, validation AUC = {-1}, validation dices = {diceStats[0]} +/- {diceStats[1]}, validation msd = {msdStats[0]} +/- {msdStats[1]}, validation hd = {hdStats[0]} +/- {hdStats[1]}, tumor counts = {totalCounts[3]} / {missedCounts[3]}, auc = {roc[3]}", flush=True)
+                    #valAUCs[e] = roc[3]
 
-                    valAUCs[e] = roc[3]
+                    if bestDsc is None or diceStats[0][3] > bestDsc:
+                        print(f"Info: Got better tumor DSC: {diceStats[0][3]} > {bestDsc}")
+                        print(f"Info: Saving '{snapshotFile}' ...")
 
-                    with open(rocFile, mode="wt", newline="") as f:
-                        f.write("# Threshold\tFPR\tTPR\n")
+                        self.SaveModel(snapshotFile)
 
-                        for threshold, fpr, tpr in zip(roc[0], roc[1], roc[2]):
-                            f.write(f"{threshold}\t{fpr}\t{tpr}\n")
+                        bestDsc = diceStats[0][3]
 
-                        f.write(f"# AUC = {roc[3]}\n")
+                        with open(rocFile, mode="wt", newline="") as f:
+                            f.write("# Threshold\tFPR\tTPR\n")
 
-                    with open(diceFile, mode="wt", newline="") as f:
-                        #for patientId in allDices:
-                        #    f.write(f"{patientId}: {allDices[patientId]}\n")
-                        for patientId, metricsByLabel in metricsByPatient.items():
-                            f.write(f"{patientId}: {metricsByLabel[3]['dsc']}\n")
+                            for threshold, fpr, tpr in zip(roc[0], roc[1], roc[2]):
+                                f.write(f"{threshold}\t{fpr}\t{tpr}\n")
 
-                        f.write(f"\nDice stats: {diceStats[0]} +/- {diceStats[1]}\n")
+                            f.write(f"# AUC = {roc[3]}\n")
 
+                        with open(diceFile, mode="wt", newline="") as f:
+                            #for patientId in allDices:
+                            #    f.write(f"{patientId}: {allDices[patientId]}\n")
+                            for patientId, metricsByLabel in metricsByPatient.items():
+                                f.write(f"{patientId}: {metricsByLabel[3]['dsc'] if 'dsc' in metricsByLabel[3] else -1.0}\n")
+
+                            f.write(f"\nDice stats: {diceStats[0]} +/- {diceStats[1]}\n")
+
+                    print(f"Info: Epoch = {e}, training loss = {runningLoss}, learning rate = {learningRate}, validation AUC = {-1}, validation dices = {diceStats[0]} +/- {diceStats[1]}, validation msd = {msdStats[0]} +/- {msdStats[1]}, validation hd = {hdStats[0]} +/- {hdStats[1]}, tumor counts = {totalCounts[3]} / {missedCounts[3]}, auc = {roc[3]}", flush=True)
         except:
             imageBatcher.stop()
             raise sys.exc_info()[1]
 
         imageBatcher.stop()
  
-        return trainLosses, valAUCs
+        #return trainLosses, valAUCs
 
